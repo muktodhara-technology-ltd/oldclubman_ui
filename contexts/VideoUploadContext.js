@@ -86,6 +86,93 @@ export const VideoUploadProvider = ({ children }) => {
         }
     };
 
+    const uploadMultipartVideoToS3 = async (presignedData, file, onProgress) => {
+        const { upload_id, s3_key, num_parts, part_size, mime_type } = presignedData;
+        const totalSize = file.size;
+        let uploadedParts = [];
+        const token = typeof window !== 'undefined' ? localStorage.getItem('old_token') : null;
+
+        for (let partNumber = 1; partNumber <= num_parts; partNumber++) {
+            // Check for cancellation
+            if (abortControllerRef.current && abortControllerRef.current.signal.aborted) {
+                throw new Error('Upload cancelled');
+            }
+
+            const start = (partNumber - 1) * part_size;
+            const end = Math.min(start + part_size, totalSize);
+            const chunk = file.slice(start, end);
+
+            // Get presigned URL for this part
+            const partUrlResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/s3/multipart/part-url`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    s3_key: s3_key,
+                    upload_id: upload_id,
+                    part_number: partNumber
+                })
+            });
+
+            if (!partUrlResponse.ok) {
+                throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+            }
+
+            const { part_url } = await partUrlResponse.json();
+
+            // Upload the part
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (e) => {
+                    // Since we do one part at a time, we can calculate total progress here roughly
+                    // but simpler to just track finished parts in the outer loop or do part-based progress
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // ETag is needed for completion
+                        const eTag = xhr.getResponseHeader('ETag');
+                        resolve({ ETag: eTag, PartNumber: partNumber });
+                    } else {
+                        reject(new Error(`Part upload failed: ${xhr.status}`));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Network error during part upload'));
+                xhr.open('PUT', part_url);
+                xhr.send(chunk);
+
+                // Connect abort signal
+                if (abortControllerRef.current) {
+                    abortControllerRef.current.signal.addEventListener('abort', () => xhr.abort());
+                }
+            }).then(partData => {
+                uploadedParts.push(partData);
+                const percent = (partNumber / num_parts) * 100;
+                onProgress(percent);
+            });
+        }
+
+        // Complete multipart upload
+        const completeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/s3/multipart/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                s3_key: s3_key,
+                upload_id: upload_id,
+                parts: uploadedParts
+            })
+        });
+
+        if (!completeResponse.ok) {
+            throw new Error('Failed to complete multipart upload');
+        }
+    };
+
     const startUpload = useCallback(async (formData, postId = null, originalFiles = []) => {
         setIsUploading(true);
         setUploadProgress(0);
@@ -125,43 +212,38 @@ export const VideoUploadProvider = ({ children }) => {
                 const totalVideos = presignedVideos.length;
 
                 // Identify video files from originalFiles
-                // We assume the order matches or we need a way to match them.
-                // The guide suggests: "videos = files.filter(video); return videos[index]"
-                // Let's filter originalFiles for videos safely.
                 const videoFiles = Array.from(originalFiles).filter(f => f.type.startsWith('video/'));
 
                 for (let i = 0; i < totalVideos; i++) {
                     const presignedData = presignedVideos[i];
-                    // Fallback to index matching if we can't match by ID (checking if frontend has ID access which it usually doesn't for new files)
-                    const videoFile = videoFiles[i];
+                    // Match by name ideally, but fallback to index
+                    // Backend returns `file_name` in presignedData which matches `name` in metadata/file
+                    const videoFile = videoFiles.find(f => f.name === presignedData.file_name) || videoFiles[i];
 
                     if (!videoFile) {
                         console.warn(`Could not find video file for index ${i}`);
                         continue;
                     }
 
-                    console.log('Full Presigned Data:', JSON.stringify(presignedData, null, 2));
-
-                    if (!presignedData.upload_url) {
-                        console.error('Missing upload_url in presignedData:', presignedData);
-                        throw new Error('Server returned invalid upload configuration (missing upload_url)');
-                    }
-
                     setNotification({ type: 'info', message: `Uploading video ${i + 1} of ${totalVideos}...` });
 
                     // Upload to S3
+                    if (presignedData.upload_method === 'multipart') {
+                        await uploadMultipartVideoToS3(presignedData, videoFile, (percent) => {
+                            const globalProgress = ((i * 100) + percent) / totalVideos;
+                            setUploadProgress(globalProgress);
+                        });
+                    } else if (presignedData.upload_url) {
+                        await uploadVideoToS3(presignedData, videoFile, (percent) => {
+                            const globalProgress = ((i * 100) + percent) / totalVideos;
+                            setUploadProgress(globalProgress);
+                        });
 
-                    await uploadVideoToS3(presignedData, videoFile, (percent) => {
-                        // Calculate overall progress if multiple videos? 
-                        // For now just show current video progress scaled by total count, or just raw.
-                        // Simple approach: (Completed Videos * 100 + Current Video %) / Total Videos
-                        const globalProgress = ((i * 100) + percent) / totalVideos;
-                        setUploadProgress(globalProgress);
-                    });
-
-                    // Confirm Upload (only for non-multipart, as multipart complete handles it)
-                    if (presignedData.upload_method !== 'multipart') {
+                        // Confirm Upload (only for non-multipart)
                         await confirmUpload(presignedData.file_id, presignedData.s3_key);
+                    } else {
+                        console.error('Missing upload configuration:', presignedData);
+                        throw new Error('Server returned invalid upload configuration');
                     }
                 }
             }
