@@ -25,21 +25,32 @@ async function fetchPostData(postId) {
 function getOgImageUrl(post) {
     if (!post) return null;
 
+    const baseUrl = (process.env.NEXT_PUBLIC_FILE_PATH || 'https://d154q69kxu0fuf.cloudfront.net').replace(/\/+$/, '');
+
     // First, check for post files (images/videos)
     if (post.files && post.files.length > 0) {
         const firstFile = post.files[0];
         const filePath = firstFile.file_path || firstFile.path;
 
-        // If it's a video, we might not have a good thumbnail
-        // For images, construct the full URL
-        if (filePath) {
+        // Skip if it's a video (no good thumbnail)
+        if (filePath && /\.(mp4|webm|ogg|mov|avi)$/i.test(filePath)) {
+            // Try background_url as fallback for videos
+        } else if (filePath) {
             // Check if it's already a full URL
             if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
                 return filePath;
             }
-            // Use the file path with the CDN/storage URL
-            const baseUrl = process.env.NEXT_PUBLIC_FILE_PATH || 'https://d154q69kxu0fuf.cloudfront.net/';
-            return `${baseUrl}${filePath}`;
+
+            // Clean the path - remove leading slashes
+            const cleanPath = filePath.replace(/^\/+/, '');
+
+            // Check if path already includes 'post/' prefix
+            if (cleanPath.startsWith('post/')) {
+                return `${baseUrl}/${cleanPath}`;
+            }
+
+            // Add 'post/' prefix for post file images
+            return `${baseUrl}/post/${cleanPath}`;
         }
     }
 
@@ -48,8 +59,8 @@ function getOgImageUrl(post) {
         if (post.background_url.startsWith('http')) {
             return post.background_url;
         }
-        const baseUrl = process.env.NEXT_PUBLIC_FILE_PATH || 'https://d154q69kxu0fuf.cloudfront.net/';
-        return `${baseUrl}${post.background_url}`;
+        const cleanBgPath = post.background_url.replace(/^\/+/, '');
+        return `${baseUrl}/${cleanBgPath}`;
     }
 
     return null;
