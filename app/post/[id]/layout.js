@@ -3,20 +3,30 @@ import { getImageUrl } from '@/utility';
 // Server-side function to fetch post data for metadata
 async function fetchPostData(postId) {
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.oldclubman.com';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.oldclubman.com';
+        console.log('[OG Metadata] Fetching post from:', `${apiUrl}/public/post/${postId}`);
+
         const response = await fetch(`${apiUrl}/public/post/${postId}`, {
             next: { revalidate: 60 }, // Cache for 60 seconds
+            headers: {
+                'Accept': 'application/json',
+            }
         });
 
         if (!response.ok) {
-            console.error('Failed to fetch post for metadata:', response.status);
+            console.error('[OG Metadata] Failed to fetch post:', response.status, response.statusText);
             return null;
         }
 
         const data = await response.json();
-        return data?.data?.value || data?.data?.post || data?.post || data?.value || null;
+        console.log('[OG Metadata] API response structure:', JSON.stringify(data, null, 2).substring(0, 500));
+
+        const post = data?.data?.value || data?.data?.post || data?.post || data?.value || data?.data || null;
+        console.log('[OG Metadata] Extracted post:', post ? `ID: ${post.id}, Files: ${post.files?.length || 0}` : 'null');
+
+        return post;
     } catch (error) {
-        console.error('Error fetching post for metadata:', error);
+        console.error('[OG Metadata] Error fetching post:', error.message);
         return null;
     }
 }
