@@ -28,6 +28,7 @@ import {
     sharePost
 } from '@/views/gathering/store';
 import LoginPrompt from '@/components/auth/LoginPrompt';
+import ShareModal from '@/components/common/ShareModal';
 
 const PostDetailsPage = () => {
     const params = useParams();
@@ -52,6 +53,7 @@ const PostDetailsPage = () => {
     // Share Modal State
     const [showShareModal, setShowShareModal] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
+    const [isMessageExpanded, setIsMessageExpanded] = useState(false);
 
     const initialImageIndex = searchParams.get('image');
 
@@ -134,28 +136,31 @@ const PostDetailsPage = () => {
     const handleReaction = (reactionType) => {
         if (!post) return;
 
-        // Optimistic Update
-        const optimisticPost = { ...post };
-        const existingReaction = optimisticPost.single_reaction;
+        // Save current state for potential revert (deep copy)
+        const previousPost = JSON.parse(JSON.stringify(post));
 
-        // Add new reaction locally
-        optimisticPost.single_reaction = { type: reactionType }; // Mock structure
+        // Optimistic Update using functional state update
+        setPost(prev => {
+            const updated = { ...prev };
+            updated.single_reaction = { type: reactionType };
 
-        // Update count if switching or new
-        if (!existingReaction) {
-            optimisticPost.reactions = [...(optimisticPost.reactions || []), { type: reactionType }];
-        }
-        // If switching (e.g. like -> love), count stays same generally, but precise count logic might differ. 
-        // Simplified: push new reaction to list if accurate count tracking needed, or just rely on re-fetch for perfect count later.
-
-        setPost(optimisticPost);
+            // Update reactions array
+            if (!prev.single_reaction) {
+                updated.reactions = [...(prev.reactions || []), { type: reactionType }];
+            }
+            return updated;
+        });
         setShowReactions(false);
 
         dispatch(storePostReactions({ post_id: post.id, reaction_type: reactionType }))
-            .then(() => fetchPostDetails(false))
-            .catch(() => {
-                // Revert on error
-                setPost(post);
+            .unwrap()
+            .then(() => {
+                console.log('[PostDetails] Reaction saved successfully');
+                fetchPostDetails(false);
+            })
+            .catch((error) => {
+                console.error('[PostDetails] Reaction failed:', error);
+                setPost(previousPost);
                 toast.error("Failed to react");
             });
     };
@@ -163,18 +168,25 @@ const PostDetailsPage = () => {
     const handleDeleteReaction = () => {
         if (!post) return;
 
-        // Optimistic Update
-        const optimisticPost = { ...post };
-        optimisticPost.single_reaction = null;
-        optimisticPost.reactions = (optimisticPost.reactions || []).filter(r => r.client_id !== profile?.client?.id); // Simplified removal
+        // Save current state for revert (deep copy)
+        const previousPost = JSON.parse(JSON.stringify(post));
 
-        setPost(optimisticPost);
+        // Optimistic Update using functional state update
+        setPost(prev => ({
+            ...prev,
+            single_reaction: null,
+            reactions: (prev.reactions || []).filter(r => r.client_id !== profile?.client?.id)
+        }));
 
         dispatch(deletePostReaction(post.id))
-            .then(() => fetchPostDetails(false))
-            .catch(() => {
-                // Revert on error
-                setPost(post);
+            .unwrap()
+            .then(() => {
+                console.log('[PostDetails] Reaction deleted successfully');
+                fetchPostDetails(false);
+            })
+            .catch((error) => {
+                console.error('[PostDetails] Delete reaction failed:', error);
+                setPost(previousPost);
                 toast.error("Failed to remove reaction");
             });
     };
@@ -184,9 +196,12 @@ const PostDetailsPage = () => {
         e.preventDefault();
         if (!commentInput.trim() || !post) return;
 
+        const commentContent = commentInput.trim();
+        const previousPost = { ...post };
+
         const optimisticComment = {
-            id: Date.now(), // Temp ID
-            content: commentInput,
+            id: `temp-${Date.now()}`,
+            content: commentContent,
             created_at: new Date().toISOString(),
             client_comment: {
                 fname: profile?.client?.fname || 'You',
@@ -198,34 +213,37 @@ const PostDetailsPage = () => {
             replies_count: 0
         };
 
-        const optimisticPost = {
-            ...post,
-            comments: [optimisticComment, ...(post.comments || [])]
-        };
-
-        setPost(optimisticPost);
+        // Optimistic update - add comment to the list
+        setPost(prev => ({
+            ...prev,
+            comments: [optimisticComment, ...(prev.comments || [])]
+        }));
         setCommentInput('');
 
-        dispatch(storeComments({ post_id: post.id, content: commentInput }))
+        dispatch(storeComments({ post_id: post.id, content: commentContent }))
+            .unwrap()
             .then((response) => {
-                // Success: Update the optimistic comment with real data (or just keep it if response is consistent)
-                // Best practice: Replace the temp ID with the real ID from response if available.
-                // response.payload is usually the return value of the thunk.
+                console.log('[PostDetails] Comment response:', response);
+                // The response could be in different formats
+                const newComment = response?.comment || response?.data?.comment || response;
 
-                const newComment = response.payload; // Based on store/index.js: storeComments returns resData
                 if (newComment && newComment.id) {
+                    // Replace optimistic comment with real one
                     setPost(prev => ({
                         ...prev,
-                        comments: prev.comments.map(c => c.id === optimisticComment.id ? newComment : c)
+                        comments: prev.comments.map(c =>
+                            c.id === optimisticComment.id ? { ...newComment, client_comment: optimisticComment.client_comment } : c
+                        )
                     }));
                 } else {
-                    // If no payload, trigger a background fetch just in case, but keep optimistic
+                    // Re-fetch to get proper data
                     fetchPostDetails(false);
                 }
             })
-            .catch(() => {
-                setPost(post); // Revert
-                setCommentInput(optimisticComment.content); // Restore input
+            .catch((error) => {
+                console.error('[PostDetails] Comment failed:', error);
+                setPost(previousPost);
+                setCommentInput(commentContent);
                 toast.error("Failed to post comment");
             });
     };
@@ -389,7 +407,7 @@ const PostDetailsPage = () => {
                                 {reply.single_reaction ? reply.single_reaction.type : 'Like'}
                             </button>
                             {showCommentReactionsFor === reply.id && (
-                                <div className="absolute bottom-full left-0 bg-white shadow-lg rounded-full flex gap-1 p-1 border z-10" onMouseLeave={() => setShowCommentReactionsFor(null)}>
+                                <div className="absolute bottom-full left-0 mb-0 bg-white shadow-xl rounded-full flex gap-0.5 px-2 py-1.5 z-50" onMouseEnter={() => setShowCommentReactionsFor(reply.id)} onMouseLeave={() => setShowCommentReactionsFor(null)}>
                                     {['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].map((type) => (
                                         <img
                                             key={type}
@@ -561,7 +579,21 @@ const PostDetailsPage = () => {
                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         {/* Post Caption (if not background post) */}
                         {(!post.background_url || !/\/post_background\/.+/.test(post.background_url)) && post.message && (
-                            <div className="text-gray-900 text-sm mb-4 whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: post.message }}></div>
+                            <div className="mb-4">
+                                <div
+                                    className={`text-gray-900 text-sm whitespace-pre-wrap break-words ${!isMessageExpanded ? 'line-clamp-2' : ''}`}
+                                    dangerouslySetInnerHTML={{ __html: post.message }}
+                                />
+                                {/* Show See more/less only if message is long enough */}
+                                {stripHtmlTags(post.message).length > 150 && (
+                                    <button
+                                        onClick={() => setIsMessageExpanded(!isMessageExpanded)}
+                                        className="text-gray-500 hover:text-gray-700 text-sm font-medium mt-1"
+                                    >
+                                        {isMessageExpanded ? 'See less' : 'See more'}
+                                    </button>
+                                )}
+                            </div>
                         )}
 
                         {/* Stats */}
@@ -606,7 +638,7 @@ const PostDetailsPage = () => {
                                 </button>
                                 {showReactions && (
                                     <div
-                                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white rounded-full shadow-lg p-1 flex gap-1 border"
+                                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-0 w-full bg-white rounded-full shadow-xl px-2 py-1.5 flex gap-0.5 z-50"
                                         onMouseEnter={() => setShowReactions(true)}
                                         onMouseLeave={() => setShowReactions(false)}
                                     >
@@ -616,7 +648,10 @@ const PostDetailsPage = () => {
                                                 src={`/${type}.png`}
                                                 alt={type}
                                                 className="w-8 h-8 cursor-pointer hover:scale-125 transition-transform"
-                                                onClick={() => handleReaction(type)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleReaction(type);
+                                                }}
                                             />
                                         ))}
                                     </div>
@@ -663,7 +698,7 @@ const PostDetailsPage = () => {
                                                     {comment.single_reaction ? comment.single_reaction.type : 'Like'}
                                                 </button>
                                                 {showCommentReactionsFor === comment.id && (
-                                                    <div className="absolute bottom-full left-0 bg-white shadow-lg rounded-full flex gap-1 p-1 border z-10" onMouseLeave={() => setShowCommentReactionsFor(null)}>
+                                                    <div className="absolute bottom-full left-0 mb-0 bg-white shadow-xl rounded-full flex gap-0.5 px-2 py-1.5 z-50" onMouseEnter={() => setShowCommentReactionsFor(comment.id)} onMouseLeave={() => setShowCommentReactionsFor(null)}>
                                                         {['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].map((type) => (
                                                             <img
                                                                 key={type}
@@ -768,85 +803,13 @@ const PostDetailsPage = () => {
                     </div>
                 </div>
 
-                {/* Share Confirmation Modal */}
-                {/* Share Confirmation Modal */}
-                {/* Share Confirmation Modal */}
-                {showShareModal && (
-                    <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-[200]">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 border border-gray-400 shadow-2xl">
-                            <div className="flex items-center justify-center mb-4">
-                                <IoIosShareAlt size={48} className="text-blue-600" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-center mb-2">Share Post</h3>
-                            <p className="text-gray-600 text-center mb-6">
-                                Are you sure you want to share this post to your timeline?
-                            </p>
-
-                            {/* New External Share Buttons */}
-                            <div className="mb-6">
-                                <div className="flex justify-center gap-6 pb-2">
-                                    {/* Facebook (External) */}
-                                    <button
-                                        onClick={() => {
-                                            const postUrl = `${window.location.origin}/post/${post.id}`;
-                                            const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`;
-                                            window.open(facebookShareUrl, '_blank', 'width=600,height=400');
-                                        }}
-                                        className="flex flex-col items-center flex-shrink-0 w-16 gap-2 group"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors text-gray-800">
-                                            <span className="font-bold text-xl text-blue-600">f</span>
-                                        </div>
-                                        <span className="text-xs text-gray-600 font-medium">Facebook</span>
-                                    </button>
-
-                                    {/* Copy Link */}
-                                    <button
-                                        onClick={async () => {
-                                            const postUrl = `${window.location.origin}/post/${post.id}`;
-                                            try {
-                                                await navigator.clipboard.writeText(postUrl);
-                                                toast.success('Link copied!');
-                                            } catch (err) {
-                                                const textArea = document.createElement('textarea');
-                                                textArea.value = postUrl;
-                                                document.body.appendChild(textArea);
-                                                textArea.select();
-                                                document.execCommand('copy');
-                                                document.body.removeChild(textArea);
-                                                toast.success('Link copied!');
-                                            }
-                                        }}
-                                        className="flex flex-col items-center flex-shrink-0 w-16 gap-2 group"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors text-gray-800">
-                                            <FaLink size={20} />
-                                        </div>
-                                        <span className="text-xs text-gray-600 font-medium">Copy link</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Internal Share Actions */}
-                            <div className="flex flex-col gap-3">
-                                <button
-                                    onClick={confirmShare}
-                                    disabled={isSharing}
-                                    className={`w-full px-4 py-3 text-white rounded-lg transition-colors ${isSharing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                                >
-                                    {isSharing ? 'Sharing...' : 'Share Now (Internal)'}
-                                </button>
-                                <button
-                                    onClick={cancelShare}
-                                    disabled={isSharing}
-                                    className="w-full px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* Share Modal */}
+                <ShareModal
+                    isOpen={showShareModal}
+                    onClose={() => setShowShareModal(false)}
+                    postId={post?.id}
+                    onShareSuccess={() => fetchPostDetails(false)}
+                />
 
             </div>
         </div>
