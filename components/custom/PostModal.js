@@ -1408,9 +1408,9 @@ const PostModal = () => {
             if (file.type.startsWith('video/')) {
               // For videos, send metadata only (not the actual file)
               // Backend will use this to generate presigned URLs for direct S3 upload
-              formData.append(`video_metadata[${videoIndex}][name]`, file.name);
-              formData.append(`video_metadata[${videoIndex}][size]`, file.size);
-              formData.append(`video_metadata[${videoIndex}][type]`, file.type);
+              // formData.append(`video_metadata[${videoIndex}][name]`, file.name);
+              // formData.append(`video_metadata[${videoIndex}][size]`, file.size);
+              // formData.append(`video_metadata[${videoIndex}][type]`, file.type);
               videoIndex++;
             } else {
               // For images, send the actual file
