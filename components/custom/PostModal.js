@@ -1399,11 +1399,24 @@ const PostModal = () => {
         formData.append('background_url', selectedBackground?.image?.path);
       }
 
-      // Add files if present
+      // Add files if present (only images - videos are uploaded directly to S3)
       if (basicPostData.files?.length > 0) {
-        basicPostData.files.forEach((file, index) => {
+        let imageIndex = 0;
+        let videoIndex = 0;
+        basicPostData.files.forEach((file) => {
           if (file instanceof File) {
-            formData.append(`files[${index}]`, file);
+            if (file.type.startsWith('video/')) {
+              // For videos, send metadata only (not the actual file)
+              // Backend will use this to generate presigned URLs for direct S3 upload
+              formData.append(`video_metadata[${videoIndex}][name]`, file.name);
+              formData.append(`video_metadata[${videoIndex}][size]`, file.size);
+              formData.append(`video_metadata[${videoIndex}][type]`, file.type);
+              videoIndex++;
+            } else {
+              // For images, send the actual file
+              formData.append(`files[${imageIndex}]`, file);
+              imageIndex++;
+            }
           }
         });
       }
