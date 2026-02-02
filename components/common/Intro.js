@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getMyProfile } from '@/views/settings/store';
 
 import { getWalletBalance } from '@/views/wallet/store';
+import Weather from './Weather';
 
 // Helper function to get client image URL without duplication
 const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
@@ -64,6 +65,8 @@ const Intro = () => {
           </Link>
         </div>
       </div>
+
+      <Weather />
     </div>
   )
 }
