@@ -4545,7 +4545,7 @@ const PostList = ({ postsData }) => {
               <div className="border-t border-gray-200"></div>
 
               {/* Send in Messenger */}
-              {/* <div className="p-4">
+              <div className="p-4">
                 <h4 className="font-semibold text-gray-900 mb-4 text-[17px]">Send in Messenger</h4>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {myFollowers && myFollowers.length > 0 ? (
@@ -4576,7 +4576,7 @@ const PostList = ({ postsData }) => {
                     ))
                   )}
                 </div>
-              </div> */}
+              </div>
 
               {/* Share to */}
               <div className="p-4 pt-0">

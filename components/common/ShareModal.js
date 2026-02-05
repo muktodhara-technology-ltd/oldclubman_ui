@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { FaTimes, FaLink, FaGlobeAmericas } from 'react-icons/fa';
+import { FaTimes, FaLink, FaGlobeAmericas, FaChevronRight } from 'react-icons/fa';
 import { IoLogoWhatsapp } from 'react-icons/io';
 import toast from 'react-hot-toast';
 import { sharePost } from '@/views/gathering/store';
+import { getAllChat, sendMessage } from '@/views/message/store';
 
 /**
  * ShareModal - Reusable share modal component
@@ -17,8 +18,18 @@ import { sharePost } from '@/views/gathering/store';
 const ShareModal = ({ isOpen, onClose, postId, onShareSuccess }) => {
     const dispatch = useDispatch();
     const profile = useSelector((state) => state.profile?.profile);
+    const { allChat } = useSelector((state) => state.chat);
+
     const [shareMessage, setShareMessage] = useState('');
     const [isSharing, setIsSharing] = useState(false);
+    const [sendingTo, setSendingTo] = useState(null); // Track which chat ID is currently sending
+
+    // Fetch chats on mount if open
+    useEffect(() => {
+        if (isOpen) {
+            dispatch(getAllChat());
+        }
+    }, [isOpen, dispatch]);
 
     const getClientImageUrl = (imagePath) => {
         if (!imagePath) return "/common-avator.jpg";
@@ -60,6 +71,31 @@ const ShareModal = ({ isOpen, onClose, postId, onShareSuccess }) => {
         return '';
     };
 
+    const handleSendToChat = async (chat) => {
+        if (sendingTo) return; // Prevent multiple sends
+
+        try {
+            setSendingTo(chat.id);
+            const postUrl = getPostUrl();
+            const messageContent = shareMessage
+                ? `${shareMessage}\n\n${postUrl}`
+                : postUrl;
+
+            await dispatch(sendMessage({
+                chatId: chat.id,
+                content: messageContent,
+                type: 'text'
+            })).unwrap();
+
+            toast.success(`Sent to ${chat.name || 'Messenger'}`);
+        } catch (error) {
+            console.error('Failed to send to messenger:', error);
+            toast.error('Failed to send message');
+        } finally {
+            setSendingTo(null);
+        }
+    };
+
     const handleWhatsAppShare = () => {
         const postUrl = getPostUrl();
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(postUrl)}`;
@@ -87,6 +123,21 @@ const ShareModal = ({ isOpen, onClose, postId, onShareSuccess }) => {
             document.body.removeChild(textArea);
             toast.success('Link copied!');
         }
+    };
+
+    // Helper to get chat display info
+    const getChatDisplayInfo = (chat) => {
+        const otherUser = chat?.users?.find(user => String(user.id) !== String(profile?.client?.id));
+
+        const name = otherUser
+            ? `${otherUser.fname || ''} ${otherUser.last_name || ''}`.trim() || otherUser.display_name
+            : chat.name || 'Unknown';
+
+        const image = otherUser?.image
+            ? getClientImageUrl(otherUser.image)
+            : chat.avatar || "/common-avator.jpg";
+
+        return { ...chat, name, image };
     };
 
     if (!isOpen) return null;
@@ -154,6 +205,60 @@ const ShareModal = ({ isOpen, onClose, postId, onShareSuccess }) => {
                     </div>
 
                     <div className="border-t border-gray-200"></div>
+
+                    {/* Check if we have chats to display */}
+                    {allChat && allChat.length > 0 && (
+                        <>
+                            <div className="p-4 pb-2">
+                                <h4 className="font-semibold text-gray-900 mb-4 text-[17px]">Send in Messenger</h4>
+                                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                                    {allChat.slice(0, 10).map((rawChat) => {
+                                        const chat = getChatDisplayInfo(rawChat);
+                                        const isSending = sendingTo === chat.id;
+
+                                        return (
+                                            <button
+                                                key={chat.id}
+                                                onClick={() => handleSendToChat(chat)}
+                                                disabled={!!sendingTo}
+                                                className="flex flex-col items-center gap-2 min-w-[70px] max-w-[70px] cursor-pointer group relative"
+                                            >
+                                                <div className="relative">
+                                                    <div className="w-14 h-14 rounded-full overflow-hidden border border-gray-100 flex items-center justify-center bg-gray-50 group-hover:opacity-90 transition-opacity">
+                                                        <img
+                                                            src={chat.image}
+                                                            alt={chat.name}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => { e.target.src = "/common-avator.jpg"; }}
+                                                        />
+                                                    </div>
+                                                    {isSending && (
+                                                        <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center">
+                                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs text-gray-600 font-medium text-center truncate w-full">
+                                                    {chat.name?.split(' ')[0]}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+
+                                    {/* More button if needed */}
+                                    {allChat.length > 10 && (
+                                        <button className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group">
+                                            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                                                <FaChevronRight className="text-gray-600" />
+                                            </div>
+                                            <span className="text-xs text-gray-600 font-medium">More</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-200 mx-4"></div>
+                        </>
+                    )}
 
                     {/* Share to */}
                     <div className="p-4 pt-4">

@@ -41,8 +41,12 @@ const Weather = () => {
                     locationData.address.county ||
                     "Unknown Location";
 
-                const stateCode = locationData.address.state_code || "";
-                const locationName = stateCode ? `${city}, ${stateCode.toUpperCase()}` : city;
+                // Try to get state code from state_code or ISO3166-2-lvl4 (e.g. "US-NY" -> "NY")
+                const stateShort = locationData.address.state_code ||
+                    (locationData.address["ISO3166-2-lvl4"] ? locationData.address["ISO3166-2-lvl4"].split('-').pop() : "") ||
+                    "";
+
+                const locationName = stateShort ? `${city}, ${stateShort.toUpperCase()}` : city;
 
                 setWeatherData({
                     temp: Math.round(data.current.temperature_2m),
