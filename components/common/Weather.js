@@ -6,6 +6,7 @@ const Weather = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [unit, setUnit] = useState('C'); // 'C' or 'F'
 
     useEffect(() => {
         // Update time every minute
@@ -160,6 +161,11 @@ const Weather = () => {
         );
     }
 
+    // Calculate temperature based on unit
+    const displayTemp = unit === 'C'
+        ? weatherData.temp
+        : Math.round((weatherData.temp * 9 / 5) + 32);
+
     return (
         <div className="flex items-center justify-center mt-1">
             <div className="bg-white rounded-lg border border-gray-300 p-6 w-full shadow-sm">
@@ -171,12 +177,22 @@ const Weather = () => {
                         </div>
                         <div className="flex items-start leading-none">
                             <span className="text-[5rem] font-normal text-gray-800 -tracking-wide">
-                                {weatherData.temp}
+                                {displayTemp}
                             </span>
-                            <div className="flex items-center text-xl text-gray-500 mt-3 font-light">
-                                <span className="font-medium text-gray-800">°C</span>
-                                {/* <span className="mx-1 text-gray-300">|</span>
-                                <span>°F</span> */}
+                            <div className="flex items-center text-xl text-gray-500 mt-3 font-light gap-2 ml-2">
+                                <span
+                                    className={`font-medium cursor-pointer ${unit === 'C' ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                                    onClick={() => setUnit('C')}
+                                >
+                                    °C
+                                </span>
+                                <span className="text-gray-300">|</span>
+                                <span
+                                    className={`font-medium cursor-pointer ${unit === 'F' ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                                    onClick={() => setUnit('F')}
+                                >
+                                    °F
+                                </span>
                             </div>
                         </div>
                     </div>

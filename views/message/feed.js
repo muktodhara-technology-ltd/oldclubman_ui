@@ -853,6 +853,41 @@ const MessagingContent = () => {
     }
   };
 
+  // Handle paste event
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+
+          if (file) {
+            // Check file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+              toast.error('File size must be less than 10MB');
+              return;
+            }
+
+            setSelectedFile(file);
+            toast.success(`Image pasted: ${file.name}`);
+
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              setFilePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+
+            // Allow only one file for now
+            return;
+          }
+        }
+      }
+    }
+  };
+
   // Handle file selection
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -1527,6 +1562,7 @@ const MessagingContent = () => {
                       value={newMessage}
                       onChange={handleInputChange}
                       onKeyPress={handleKeyPress}
+                      onPaste={handlePaste}
                     />
                     <button
                       className={`p-2.5 md:p-3 rounded-xl transition-all duration-200 shadow-sm ${(newMessage.trim() || selectedFile)

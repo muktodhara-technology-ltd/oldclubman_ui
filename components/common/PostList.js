@@ -56,6 +56,7 @@ import api from "@/helpers/axios";
 import { getImageUrl } from "@/utility"; // Import helper
 import PostCommentsModal from "./PostCommentsModal";
 import { usePostComments } from "@/contexts/PostCommentsContext";
+import { useChatBox } from "@/contexts/ChatBoxContext";
 
 // Helper function to get client image URL without duplication
 const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
@@ -77,6 +78,7 @@ const PostList = ({ postsData }) => {
 
   // Post Comments Context for notification-triggered modal
   const { shouldOpenModal, consumePendingRequest } = usePostComments();
+  const { openChat } = useChatBox();
 
   useEffect(() => {
     let isMounted = true;
@@ -2818,9 +2820,18 @@ const PostList = ({ postsData }) => {
     // Hide popup immediately
     hideProfilePopup(true);
 
-    // You can implement your messaging system here
-    // For now, we'll show a toast message
-    toast.info(`Message feature coming soon for ${userName}!`);
+    const postUrl = `${window.location.origin}/post/${postToShare || basicPostData?.id || ""}`;
+    const initialMessage = postToShare ? postUrl : `Hi ${userName}!`;
+
+    // Construct a minimal user object for the chat
+    const userToChatWith = {
+      id: userId,
+      fname: userName,
+      image: profilePopup.profileData?.image || "/common-avator.jpg"
+    };
+
+    // Open chat with initial message
+    openChat(null, userToChatWith, initialMessage);
   };
 
   // Handle profile stats click
@@ -4550,17 +4561,21 @@ const PostList = ({ postsData }) => {
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {myFollowers && myFollowers.length > 0 ? (
                     myFollowers.slice(0, 10).map((follower, idx) => (
-                      <div key={idx} className="flex flex-col items-center gap-1 min-w-[70px] cursor-pointer group">
+                      <div
+                        key={idx}
+                        className="flex flex-col items-center gap-1 min-w-[70px] cursor-pointer group"
+                        onClick={() => handleSendMessage(follower.follower_client?.id || follower.id, follower.follower_client?.fname || follower.name || "User")}
+                      >
                         <div className="w-14 h-14 rounded-full overflow-hidden border border-gray-100 group-hover:opacity-90 transition-opacity">
                           <img
-                            src={getClientImageUrl(follower?.follower_client?.image)}
-                            alt={follower?.follower_client?.fname}
+                            src={getClientImageUrl(follower?.follower_client?.image || follower?.image)}
+                            alt={follower?.follower_client?.fname || follower.name}
                             className="w-full h-full object-cover"
                             onError={(e) => { e.target.src = "/common-avator.jpg"; }}
                           />
                         </div>
                         <span className="text-xs text-center text-gray-500 leading-tight line-clamp-2 w-full">
-                          {follower?.follower_client?.fname || "User"}
+                          {follower?.follower_client?.fname || follower.name || "User"}
                         </span>
                       </div>
                     ))

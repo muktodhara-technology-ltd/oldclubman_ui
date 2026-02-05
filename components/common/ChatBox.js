@@ -11,11 +11,11 @@ import { FaTimes, FaPaperPlane, FaImage } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import { useChatPusher } from '../custom/useChatPusher';
 
-const ChatBox = ({ user, currentChat, onClose }) => {
+const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
   const { allChat, prevChat, convarsationData } = useSelector(({ chat }) => chat);
   const { userFollowers, profile, userProfileData } = useSelector(({ settings }) => settings);
   const dispatch = useDispatch()
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialMessage);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -66,6 +66,13 @@ const ChatBox = ({ user, currentChat, onClose }) => {
       setDisplayUser(user);
     }
   }, [currentChat, user, profile?.client?.id]);
+
+  // Update message when initialMessage changes
+  useEffect(() => {
+    if (initialMessage) {
+      setMessage(initialMessage);
+    }
+  }, [initialMessage]);
 
   // Don't prevent body scroll - allow it to be a floating chat box
 
@@ -456,6 +463,40 @@ const ChatBox = ({ user, currentChat, onClose }) => {
     }
   };
 
+  // Handle paste event
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+
+          if (file) {
+            // Check file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+              toast.error('File size must be less than 10MB');
+              return;
+            }
+
+            setSelectedFile(file);
+
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              setFilePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+
+            // Allow only one file for now
+            return;
+          }
+        }
+      }
+    }
+  };
+
   // Handle file selection
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -707,6 +748,7 @@ const ChatBox = ({ user, currentChat, onClose }) => {
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onPaste={handlePaste}
               placeholder="Type a message..."
               className="flex-1 px-3 py-1 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
