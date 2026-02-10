@@ -23,6 +23,7 @@ import { MessageNotificationContainer } from '@/components/custom/MessageNotific
 import { pusherService } from '@/utility/pusher';
 import { ClientSegmentRoot } from 'next/dist/client/components/client-segment';
 import moment from 'moment';
+import ChatPostPreview from '@/components/common/ChatPostPreview';
 
 const MessagingContent = () => {
   const searchParams = useSearchParams();
@@ -1438,9 +1439,77 @@ const MessagingContent = () => {
                               )}
                               {message.content && (
                                 <p className={`text-sm md:text-base break-words whitespace-pre-wrap leading-relaxed ${isCurrentUser ? 'text-white' : 'text-gray-800'}`}>
-                                  {message.content}
+                                  {(() => {
+                                    const content = message.content;
+                                    if (!content) return null;
+
+                                    // Regex to match <a href="...">...</a>
+                                    const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:[^>]*?\s+)?target="([^"]*)"[^>]*>(.*?)<\/a>|<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)<\/a>/g;
+
+                                    const parts = [];
+                                    let lastIndex = 0;
+                                    let match;
+
+                                    while ((match = linkRegex.exec(content)) !== null) {
+                                      const [fullMatch, href1, target1, text1, href2, text2] = match;
+                                      const href = href1 || href2;
+                                      const target = target1 || "_blank";
+                                      const text = text1 || text2;
+
+                                      // Add text before the link
+                                      if (match.index > lastIndex) {
+                                        parts.push(content.substring(lastIndex, match.index));
+                                      }
+
+                                      // Add the link
+                                      parts.push(
+                                        <a
+                                          key={match.index}
+                                          href={href}
+                                          target={target}
+                                          rel="noopener noreferrer"
+                                          className={`hover:underline ${isCurrentUser ? 'text-blue-100 underline' : 'text-blue-600'}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {text}
+                                        </a>
+                                      );
+
+                                      lastIndex = linkRegex.lastIndex;
+                                    }
+
+                                    // Add remaining text
+                                    if (lastIndex < content.length) {
+                                      parts.push(content.substring(lastIndex));
+                                    }
+
+                                    return parts.length > 0 ? parts : content;
+                                  })()}
                                 </p>
                               )}
+
+                              {/* Rich Post Preview */}
+                              {(() => {
+                                // Helper to extract UUID or numeric ID from post URL
+                                const extractPostId = (content) => {
+                                  if (!content) return null;
+                                  // Regex to match /post/UUID or /post/ID
+                                  // Handles optional domain prefix
+                                  const match = content.match(/\/post\/([a-fA-F0-9-]{36}|[a-zA-Z0-9]+)/);
+                                  return match ? match[1] : null;
+                                };
+
+                                const postId = extractPostId(message.content);
+                                // console.log('Message content:', message.content, 'Extracted postId:', postId);
+                                if (postId) {
+                                  return (
+                                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                                      <ChatPostPreview postId={postId} />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
 
                               <div className={`text-[10px] md:text-xs mt-2 flex justify-end items-center gap-1.5 ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'}`}>
                                 <span className="font-medium">

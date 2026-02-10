@@ -14,11 +14,14 @@ const ChatPostPreview = ({ postId }) => {
     useEffect(() => {
         let isMounted = true;
 
+        console.log('ChatPostPreview mounted with postId:', postId);
+
         if (postId) {
             setLoading(true);
             dispatch(getPostById(postId))
                 .unwrap()
                 .then((data) => {
+                    console.log('ChatPostPreview fetch success:', data);
                     if (isMounted) {
                         setPost(data);
                         setLoading(false);
