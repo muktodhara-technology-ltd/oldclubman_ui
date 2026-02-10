@@ -68,6 +68,7 @@ export const VideoUploadProvider = ({ children }) => {
 
     const confirmUpload = async (fileId, s3Key) => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('old_token') : null;
+        console.log('[DEBUG] Confirming upload for fileId:', fileId, 's3Key:', s3Key);
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/s3/confirm-upload`, {
             method: 'POST',
             headers: {
@@ -82,8 +83,11 @@ export const VideoUploadProvider = ({ children }) => {
         });
 
         if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('[DEBUG] Confirm upload failed:', response.status, errorData);
             throw new Error('Failed to confirm upload');
         }
+        console.log('[DEBUG] Upload confirmed successfully');
     };
 
     const uploadMultipartVideoToS3 = async (presignedData, file, onProgress) => {
@@ -91,6 +95,8 @@ export const VideoUploadProvider = ({ children }) => {
         const totalSize = file.size;
         let uploadedParts = [];
         const token = typeof window !== 'undefined' ? localStorage.getItem('old_token') : null;
+
+        console.log('[DEBUG] Multipart upload details:', { upload_id, s3_key, num_parts, part_size });
 
         for (let partNumber = 1; partNumber <= num_parts; partNumber++) {
             // Check for cancellation
@@ -117,10 +123,27 @@ export const VideoUploadProvider = ({ children }) => {
             });
 
             if (!partUrlResponse.ok) {
+                const errorData = await partUrlResponse.json().catch(() => ({}));
+                console.error('[DEBUG] Failed to get part URL:', partNumber, errorData);
                 throw new Error(`Failed to get presigned URL for part ${partNumber}`);
             }
 
-            const { part_url } = await partUrlResponse.json();
+            const partUrlData = await partUrlResponse.json();
+            console.log(`[DEBUG] Part URL Endpoint Response for part ${partNumber}:`, JSON.stringify(partUrlData));
+
+            // Try to find the URL in common locations
+            const part_url = partUrlData.part_url ||
+                partUrlData.url ||
+                (partUrlData.data && partUrlData.data.part_url) ||
+                (partUrlData.data && partUrlData.data.url) ||
+                (partUrlData.data && partUrlData.data.upload_url);
+
+            if (!part_url) {
+                console.error('[DEBUG] Could not find part_url in response:', JSON.stringify(partUrlData));
+                throw new Error(`Server did not return a part_url for part ${partNumber}`);
+            }
+
+            console.log(`[DEBUG] Final resolved part_url:`, part_url);
 
             // Upload the part
             await new Promise((resolve, reject) => {
@@ -132,8 +155,18 @@ export const VideoUploadProvider = ({ children }) => {
 
                 xhr.onload = () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        // ETag is needed for completion
-                        const eTag = xhr.getResponseHeader('ETag');
+                        // Log all headers to debug
+                        const allHeaders = xhr.getAllResponseHeaders();
+                        console.log(`[DEBUG] Part ${partNumber} headers:`, allHeaders);
+
+                        const eTag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag');
+                        if (!eTag) {
+                            // Temporary fallback: verify if we can proceed without explicit ETag (unlikely for S3)
+                            console.error('[DEBUG] ETag missing. All headers:', allHeaders);
+                            reject(new Error(`ETag missing for part ${partNumber}. Check S3 CORS configuration to expose ETag header.`));
+                            return;
+                        }
+                        console.log(`[DEBUG] Part ${partNumber} ETag found:`, eTag);
                         resolve({ ETag: eTag, PartNumber: partNumber });
                     } else {
                         reject(new Error(`Part upload failed: ${xhr.status}`));
@@ -154,6 +187,8 @@ export const VideoUploadProvider = ({ children }) => {
             });
         }
 
+        console.log('[DEBUG] All parts uploaded, completing multipart upload with parts:', uploadedParts);
+
         // Complete multipart upload
         const completeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/s3/multipart/complete`, {
             method: 'POST',
@@ -162,6 +197,8 @@ export const VideoUploadProvider = ({ children }) => {
                 'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
+                type: 'post',
+                file_id: presignedData.file_id,
                 s3_key: s3_key,
                 upload_id: upload_id,
                 parts: uploadedParts
@@ -169,8 +206,11 @@ export const VideoUploadProvider = ({ children }) => {
         });
 
         if (!completeResponse.ok) {
+            const errorData = await completeResponse.json().catch(() => ({}));
+            console.error('[DEBUG] Complete multipart upload failed:', completeResponse.status, errorData);
             throw new Error('Failed to complete multipart upload');
         }
+        console.log('[DEBUG] Multipart upload completed successfully');
     };
 
     const startUpload = useCallback(async (formData, postId = null, originalFiles = []) => {
@@ -201,15 +241,20 @@ export const VideoUploadProvider = ({ children }) => {
             });
 
             if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[DEBUG] Initial upload failed:', response.status, errorData);
                 throw new Error('Initial upload failed');
             }
 
             const result = await response.json();
+            console.log('[DEBUG] Initial Post Response:', result);
 
             // Check for videos that need direct S3 upload
             if (result.data && result.data.presigned_videos && result.data.presigned_videos.length > 0) {
                 const presignedVideos = result.data.presigned_videos;
                 const totalVideos = presignedVideos.length;
+
+                console.log('[DEBUG] Presigned Video Data:', presignedVideos);
 
                 // Identify video files from originalFiles
                 const videoFiles = Array.from(originalFiles).filter(f => f.type.startsWith('video/'));
@@ -221,7 +266,7 @@ export const VideoUploadProvider = ({ children }) => {
                     const videoFile = videoFiles.find(f => f.name === presignedData.file_name) || videoFiles[i];
 
                     if (!videoFile) {
-                        console.warn(`Could not find video file for index ${i}`);
+                        console.warn(`[DEBUG] Could not find video file for index ${i}`);
                         continue;
                     }
 
@@ -229,11 +274,13 @@ export const VideoUploadProvider = ({ children }) => {
 
                     // Upload to S3
                     if (presignedData.upload_method === 'multipart') {
+                        console.log('[DEBUG] Starting multipart upload for:', videoFile.name);
                         await uploadMultipartVideoToS3(presignedData, videoFile, (percent) => {
                             const globalProgress = ((i * 100) + percent) / totalVideos;
                             setUploadProgress(globalProgress);
                         });
                     } else if (presignedData.upload_url) {
+                        console.log('[DEBUG] Starting single PUT upload for:', videoFile.name, presignedData.upload_url);
                         await uploadVideoToS3(presignedData, videoFile, (percent) => {
                             const globalProgress = ((i * 100) + percent) / totalVideos;
                             setUploadProgress(globalProgress);
@@ -242,7 +289,7 @@ export const VideoUploadProvider = ({ children }) => {
                         // Confirm Upload (only for non-multipart)
                         await confirmUpload(presignedData.file_id, presignedData.s3_key);
                     } else {
-                        console.error('Missing upload configuration:', presignedData);
+                        console.error('[DEBUG] Missing upload configuration:', presignedData);
                         throw new Error('Server returned invalid upload configuration');
                     }
                 }
@@ -265,7 +312,7 @@ export const VideoUploadProvider = ({ children }) => {
 
             return result;
         } catch (error) {
-            console.error('Video upload error:', error);
+            console.error('[DEBUG] Video upload error:', error);
             setIsUploading(false);
 
             if (error.name === 'AbortError') {
