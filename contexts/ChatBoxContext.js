@@ -16,10 +16,12 @@ export const ChatBoxProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [activeUser, setActiveUser] = useState(null);
+  const [activeInitialMessage, setActiveInitialMessage] = useState(null);
 
-  const openChat = useCallback((chat, user = null) => {
+  const openChat = useCallback((chat, user = null, initialMessage = null) => {
     setActiveChat(chat);
     setActiveUser(user);
+    setActiveInitialMessage(initialMessage);
     setIsOpen(true);
   }, []);
 
@@ -43,6 +45,7 @@ export const ChatBoxProvider = ({ children }) => {
     setTimeout(() => {
       setActiveChat(null);
       setActiveUser(null);
+      setActiveInitialMessage(null);
     }, 300);
   }, []);
 
@@ -50,6 +53,7 @@ export const ChatBoxProvider = ({ children }) => {
     isOpen,
     activeChat,
     activeUser,
+    activeInitialMessage,
     openChat,
     openChatByConversationId,
     closeChat,

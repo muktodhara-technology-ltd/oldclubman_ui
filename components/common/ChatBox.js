@@ -1,7 +1,7 @@
 "use client";
 
 import { pusherService } from '@/utility/pusher';
-import { getAllChat, getMessage, sendMessage, addMessageToChat } from '@/views/message/store';
+import { getAllChat, getMessage, sendMessage, addMessageToChat, setCurrentConversation, startConversation } from '@/views/message/store';
 import { getMyProfile } from '@/views/settings/store';
 import api from '@/helpers/axios';
 import toast from 'react-hot-toast';
@@ -10,6 +10,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaTimes, FaPaperPlane, FaImage } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import { useChatPusher } from '../custom/useChatPusher';
+import ChatPostPreview from './ChatPostPreview';
+
+// Helper to extract UUID from post URL
+const extractPostId = (content) => {
+  if (!content) return null;
+  // Regex to match /post/UUID
+  const match = content.match(/\/post\/([a-fA-F0-9-]{36}|[a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+};
 
 const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
   const { allChat, prevChat, convarsationData } = useSelector(({ chat }) => chat);
@@ -94,6 +103,36 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
     }
   }, [currentChat?.id, convarsationData?.id]);
 
+  // Find conversation if only user is provided
+  useEffect(() => {
+    if (!currentChat && user && allChat.length > 0) {
+      // Try to find existing conversation with this user
+      const existingChat = allChat.find(chat => {
+        // Check participants array
+        if (chat.participants && Array.isArray(chat.participants)) {
+          return chat.participants.some(p => String(p.id) === String(user.id) || String(p.user_id) === String(user.id));
+        }
+        // Check other_user object
+        if (chat.other_user) {
+          return String(chat.other_user.id) === String(user.id);
+        }
+        // Check users array
+        if (chat.users && Array.isArray(chat.users)) {
+          return chat.users.some(u => String(u.id) === String(user.id));
+        }
+        return false;
+      });
+
+      if (existingChat) {
+        console.log('Found existing conversation for user:', user.id, existingChat.id);
+        // We can't easily update currentChat prop, but we can set it in Redux or handle it locally
+        // For now, let's fetch messages for this chat which will update Redux state
+        dispatch(getMessage({ id: existingChat.id }));
+        dispatch(setCurrentConversation(existingChat));
+      }
+    }
+  }, [currentChat, user, allChat, dispatch]);
+
   // Handle new message received via Pusher
   const handleMessageReceived = useCallback((data) => {
     const activeConversationId = currentChat?.id || convarsationData?.id;
@@ -138,11 +177,12 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
     if (!message.trim() && !selectedFile) return;
 
     // If we have a pending conversation (exists but no ID), try to find it first
-    let chatId = currentChat?.id;
+    let chatId = currentChat?.id || convarsationData?.id;
     let messageSent = false; // Track if message was sent via alternative method
 
-    if (!chatId && currentChat?._pendingConversation && currentChat?._userData) {
-      console.log("Pending conversation detected, trying to find conversation ID...");
+    if (!chatId && (user || (currentChat?._pendingConversation && currentChat?._userData))) {
+      const targetUser = user || currentChat?._userData;
+      console.log("No ID, trying to find/create conversation for user:", targetUser?.id);
       setIsLoading(true);
 
       try {
@@ -171,23 +211,23 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
           });
         };
 
-        let foundConversation = findConversation(refreshedChats, currentChat._userData.id);
+        let foundConversation = findConversation(refreshedChats, targetUser.id);
 
         // If not found, try direct API call
         if (!foundConversation) {
           const directResponse = await api.get('/chat');
           const directChats = directResponse.data?.data || directResponse.data || [];
-          foundConversation = findConversation(directChats, currentChat._userData.id);
+          foundConversation = findConversation(directChats, targetUser.id);
         }
 
         // If still not found, try querying by user_id directly
         if (!foundConversation) {
           try {
             const queryParams = [
-              `/chat?user_id=${currentChat._userData.id}`,
-              `/chat?participant_id=${currentChat._userData.id}`,
-              `/chat/${currentChat._userData.id}`, // Direct conversation by user ID
-              `/chat/by-user/${currentChat._userData.id}`, // Alternative format
+              `/chat?user_id=${targetUser.id}`,
+              `/chat?participant_id=${targetUser.id}`,
+              `/chat/${targetUser.id}`, // Direct conversation by user ID
+              `/chat/by-user/${targetUser.id}`, // Alternative format
             ];
 
             for (const query of queryParams) {
@@ -227,7 +267,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
           await new Promise(resolve => setTimeout(resolve, 1000));
 
           const retryChats = await dispatch(getAllChat()).unwrap();
-          const retryFound = findConversation(retryChats, currentChat._userData.id);
+          const retryFound = findConversation(retryChats, targetUser.id);
 
           if (retryFound?.id) {
             console.log("Found conversation ID on retry:", retryFound.id);
@@ -247,15 +287,15 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
               const alternativeFormData = new FormData();
               alternativeFormData.append('content', message.trim());
               alternativeFormData.append('type', selectedFile ? "file" : "text");
-              alternativeFormData.append('user_id', currentChat._userData.id);
+              alternativeFormData.append('user_id', targetUser.id);
               if (selectedFile) {
                 alternativeFormData.append('files[]', selectedFile);
               }
 
               // Try alternative endpoint formats
               const alternativeEndpoints = [
-                `/chat/message/${currentChat._userData.id}`, // Send to user directly
-                `/chat/send-to-user/${currentChat._userData.id}`, // Alternative format
+                `/chat/message/${targetUser.id}`, // Send to user directly
+                `/chat/send-to-user/${targetUser.id}`, // Alternative format
                 `/messages/send`, // Generic send endpoint
               ];
 
@@ -296,7 +336,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
                   const regularFormData = new FormData();
                   regularFormData.append('content', message.trim());
                   regularFormData.append('type', selectedFile ? "file" : "text");
-                  regularFormData.append('user_id', currentChat._userData.id);
+                  regularFormData.append('user_id', targetUser.id);
                   if (selectedFile) {
                     regularFormData.append('files[]', selectedFile);
                   }
@@ -351,7 +391,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
                   await new Promise(resolve => setTimeout(resolve, 2000));
 
                   const finalChats = await dispatch(getAllChat()).unwrap();
-                  const finalFound = findConversation(finalChats, currentChat._userData.id);
+                  const finalFound = findConversation(finalChats, targetUser.id);
 
                   if (finalFound?.id) {
                     console.log("Found conversation ID on final retry:", finalFound.id);
@@ -382,9 +422,51 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
     }
 
     if (!chatId) {
-      console.error('No conversation ID available');
-      toast.error('No conversation selected');
-      return;
+      if (user || currentChat?._userData) {
+        // Verify we have a valid target user to fall through to alternative methods
+        const targetUser = user || currentChat?._userData;
+        if (targetUser?.id) {
+          console.log('No conversation ID available, creating new conversation for user:', targetUser.id);
+
+          try {
+            // Create new conversation
+            // Determine type based on user type (assuming 'personal' default)
+            const newChat = await dispatch(startConversation({
+              user_id: targetUser.id,
+              type: 'personal' // Default to personal
+            })).unwrap();
+
+            if (newChat?.id) {
+              console.log('Created new conversation:', newChat.id);
+              chatId = newChat.id;
+              // Update currentChat
+              currentChat = { ...currentChat, id: newChat.id, ...newChat };
+              // Continue to send message logic below
+            } else {
+              throw new Error('Failed to create conversation');
+            }
+          } catch (createErr) {
+            console.error('Failed to create new conversation:', createErr);
+            // Fallback to falling through (will likely fail if still no ID, but worth a shot if backend accepts implicit creation)
+          }
+        } else {
+          console.error('No conversation ID and no valid user available');
+          toast.error('No conversation selected');
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        console.error('No conversation ID and no user available');
+        toast.error('No conversation selected');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Force entry into alternative send methods if we have a user but no chatId
+    if (!chatId && (user || (currentChat?._pendingConversation && currentChat?._userData))) {
+      // ... existing alternative logic ...
+      // I will modify the condition line in the next hunk
     }
 
     // If message was already sent via alternative method, skip regular send
@@ -695,7 +777,33 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
 
                     {/* Render text content */}
                     {msg.content && (
-                      <p className="text-sm break-words">{msg.content}</p>
+                      <div className="text-sm break-words">
+                        {/* Only show text if it's NOT just the post URL we are previewing */}
+                        {(() => {
+                          const postUrlPattern = /\/post\/([a-fA-F0-9-]{36}|[a-zA-Z0-9]+)/;
+                          const match = msg.content.match(postUrlPattern);
+                          const postId = match ? match[1] : null;
+
+                          // Check if the content is ONLY the URL (or wrapped in simple HTML tags)
+                          // We strip HTML tags to check if there is other user content
+                          const strippedContent = msg.content.replace(/<[^>]*>?/gm, '').trim();
+                          const isJustUrl = strippedContent.includes(postId) && strippedContent.length < (postId.length + 50); // Heuristic
+
+                          if (!isJustUrl) {
+                            return <p>{msg.content}</p>;
+                          }
+                          return null;
+                        })()}
+
+                        {/* Rich Post Preview */}
+                        {(() => {
+                          const postId = extractPostId(msg.content);
+                          if (postId) {
+                            return <ChatPostPreview postId={postId} />;
+                          }
+                          return null;
+                        })()}
+                      </div>
                     )}
 
                     {/* Timestamp */}

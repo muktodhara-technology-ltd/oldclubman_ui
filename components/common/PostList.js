@@ -48,6 +48,7 @@ import { MdOutlineDeleteOutline } from "react-icons/md";
 import { TbMessageReport } from "react-icons/tb";
 import { useParams, useRouter } from "next/navigation";
 import { getMyProfile, getUserProfile, getUserProfileByUsername, getAllFollowers, followTo, unFollowTo } from "@/views/settings/store";
+import { sendMessage, startConversation } from "@/views/message/store";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import CommentThread from "./CommentThread";
@@ -70,6 +71,7 @@ const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
 const PostList = ({ postsData }) => {
   const { basicPostData } = useSelector(({ gathering }) => gathering);
   const { profile, myFollowers } = useSelector(({ settings }) => settings);
+  const { allChat } = useSelector(({ chat }) => chat);
   const dispatch = useDispatch();
   const params = useParams();
   const router = useRouter();
@@ -130,6 +132,9 @@ const PostList = ({ postsData }) => {
   const [postToShare, setPostToShare] = useState(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
+  const [showMessengerSelect, setShowMessengerSelect] = useState(false);
+  const [selectedShareUsers, setSelectedShareUsers] = useState(new Set());
+  const [batchShareLoading, setBatchShareLoading] = useState(false);
   const isSharingRef = useRef(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
@@ -2819,6 +2824,8 @@ const PostList = ({ postsData }) => {
   const handleSendMessage = (userId, userName) => {
     // Hide popup immediately
     hideProfilePopup(true);
+    setPostToShare(null);
+    setShowShareModal(false); // explicit close
 
     const postUrl = `${window.location.origin}/post/${postToShare || basicPostData?.id || ""}`;
     const initialMessage = postToShare ? postUrl : `Hi ${userName}!`;
@@ -2886,11 +2893,86 @@ const PostList = ({ postsData }) => {
   };
 
   const cancelShare = () => {
-    if (isSharingRef.current) return;
     isSharingRef.current = false;
     setIsSharing(false);
     setShowShareModal(false);
     setPostToShare(null);
+    setShowMessengerSelect(false);
+    setSelectedShareUsers(new Set());
+  };
+
+  // Messenger Multi-Select Handlers
+  const handleMessengerSelectToggle = () => {
+    setShowShareModal(false);
+    setShowMessengerSelect(true);
+  };
+
+  const handleMessengerSelectBack = () => {
+    setShowMessengerSelect(false);
+    setShowShareModal(true);
+  };
+
+  const handleUserSelect = (userId) => {
+    setSelectedShareUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBatchShare = async () => {
+    if (selectedShareUsers.size === 0) return;
+
+    setBatchShareLoading(true);
+    const users = Array.from(selectedShareUsers);
+    let successCount = 0;
+
+    const postUrl = `${window.location.origin}/post/${postToShare || basicPostData?.id || ""}`;
+
+    for (const userId of users) {
+      try {
+        const userObj = myFollowers.find(f => (f.follower_client?.id || f.id) === userId);
+        const targetId = userObj?.follower_client?.id || userObj?.id || userId;
+
+        // Try to find existing personal chat
+        const existingChat = allChat?.find(chat => {
+          if (chat.type === 'personal') {
+            return chat._userData?.id === targetId;
+          }
+          return false;
+        });
+
+        let chatId = existingChat?.id;
+
+        if (!chatId) {
+          const newChat = await dispatch(startConversation({
+            user_ids: String(targetId),
+            type: 'personal'
+          })).unwrap();
+          chatId = newChat?.id;
+        }
+
+        if (chatId) {
+          const formData = new FormData();
+          formData.append('message', postUrl);
+          formData.append('type', 'text');
+
+          await dispatch(sendMessage({ chatId, formData })).unwrap();
+          successCount++;
+        }
+
+      } catch (err) {
+        console.error(`Failed to send to user ${userId}`, err);
+      }
+    }
+
+    setBatchShareLoading(false);
+    toast.success(`Sent to ${successCount} users`);
+    cancelShare();
   };
 
   const handleImagePreview = (imageSrc, allImages, index) => {
@@ -4598,6 +4680,17 @@ const PostList = ({ postsData }) => {
                 <h4 className="font-semibold text-gray-900 mb-4 text-[17px]">Share to</h4>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
 
+                  {/* Messenger Multi-Select Button */}
+                  <button
+                    onClick={handleMessengerSelectToggle}
+                    className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center group-hover:bg-blue-600 transition-colors shadow-sm">
+                      <BsMessenger className="text-2xl text-white" />
+                    </div>
+                    <span className="text-xs text-gray-600 font-medium">Messenger</span>
+                  </button>
+
                   {/* WhatsApp */}
                   <button
                     onClick={() => {
@@ -4608,7 +4701,7 @@ const PostList = ({ postsData }) => {
                     className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
                   >
                     <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                      <IoLogoWhatsapp className="text-2xl text-black" />
+                      <IoLogoWhatsapp className="text-2xl text-green-500" />
                     </div>
                     <span className="text-xs text-gray-600 font-medium">WhatsApp</span>
                   </button>
@@ -4627,14 +4720,6 @@ const PostList = ({ postsData }) => {
                     </div>
                     <span className="text-xs text-gray-600 font-medium">Facebook</span>
                   </button>
-
-                  {/* Your Story */}
-                  {/* <div className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group">
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                      <FaBookOpen className="text-2xl text-black" />
-                    </div>
-                    <span className="text-xs text-gray-600 font-medium">Your story</span>
-                  </div> */}
 
                   {/* Copy Link */}
                   <button
@@ -4657,102 +4742,185 @@ const PostList = ({ postsData }) => {
                     className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
                   >
                     <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                      <FaLink className="text-2xl text-black" />
+                      <FaLink className="text-2xl text-gray-600" />
                     </div>
                     <span className="text-xs text-gray-600 font-medium">Copy link</span>
                   </button>
 
-
-
-
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messenger Multi-Select Modal */}
+      {showMessengerSelect && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl w-full max-w-[500px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="relative border-b border-gray-200 px-4 py-4 flex items-center justify-between shrink-0">
+              <h3 className="text-xl font-bold text-gray-900">Send in Messenger</h3>
+              <button onClick={cancelShare} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <FaTimes className="text-gray-500 text-xl" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto">
+              <div className="flex justify-between items-center mb-4 px-1">
+                <h5 className="text-sm font-medium text-gray-700">Select Friends</h5>
+                <span className="text-xs text-gray-500">{selectedShareUsers.size} selected</span>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-2">
+                {myFollowers && myFollowers.length > 0 ? (
+                  myFollowers.map((follower, idx) => {
+                    const userId = follower.follower_client?.id || follower.id;
+                    const isSelected = selectedShareUsers.has(userId);
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                        onClick={() => handleUserSelect(userId)}
+                      >
+                        <div className="relative">
+                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100">
+                            <img
+                              src={getClientImageUrl(follower?.follower_client?.image || follower?.image)}
+                              alt={follower?.follower_client?.fname || follower.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.src = "/common-avator.jpg"; }}
+                            />
+                          </div>
+                          {/* Checkbox indicator */}
+                          <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                            {isSelected && <FaLink className="text-[10px] text-white" />} {/* Reusing FaLink as checkmark-ish or use standard check */}
+                          </div>
+                        </div>
+                        <span className="text-sm text-gray-700 font-medium truncate flex-1">
+                          {follower?.follower_client?.fname || follower.name || "User"}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => { }} // handled by parent div click
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p className="text-center text-sm text-gray-500 p-4">No followers found to share with.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={handleMessengerSelectBack}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleBatchShare}
+                disabled={selectedShareUsers.size === 0 || batchShareLoading}
+                className={`flex-1 py-2.5 text-sm font-medium text-white rounded-lg flex items-center justify-center gap-2 transition-colors ${selectedShareUsers.size > 0 && !batchShareLoading ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'}`}
+              >
+                {batchShareLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <BsMessenger /> Send to {selectedShareUsers.size > 0 ? selectedShareUsers.size : ''}
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Profile Popup Card */}
-      {profilePopup.isVisible && (
-        <div
-          className="fixed z-[10000] bg-white border border-gray-200 rounded-lg shadow-xl p-4 w-80 max-w-sm"
-          style={{
-            left: `${profilePopup.position.x - 160}px`,
-            top: `${profilePopup.position.y - 20}px`,
-            transform: 'translateY(-100%)'
-          }}
-          onMouseEnter={cancelHidePopup}
-          onMouseLeave={() => hideProfilePopup(false)}
-        >
-          {profilePopup.profileData ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200">
-                  <img
-                    src={profilePopup.profileData.image}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.target.src = "/common-avator.jpg"; }}
-                  />
+      {
+        profilePopup.isVisible && (
+          <div
+            className="fixed z-[10000] bg-white border border-gray-200 rounded-lg shadow-xl p-4 w-80 max-w-sm"
+            style={{
+              left: `${profilePopup.position.x - 160}px`,
+              top: `${profilePopup.position.y - 20}px`,
+              transform: 'translateY(-100%)'
+            }}
+            onMouseEnter={cancelHidePopup}
+            onMouseLeave={() => hideProfilePopup(false)}
+          >
+            {profilePopup.profileData ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200">
+                    <img
+                      src={profilePopup.profileData.image}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.src = "/common-avator.jpg"; }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900">{profilePopup.profileData.name}</h4>
+                    {profilePopup.profileData.location && (
+                      <p className="text-xs text-gray-500">{profilePopup.profileData.location}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-gray-900">{profilePopup.profileData.name}</h4>
-                  {profilePopup.profileData.location && (
-                    <p className="text-xs text-gray-500">{profilePopup.profileData.location}</p>
+                {profilePopup.profileData.bio && (
+                  <p className="text-sm text-gray-600 line-clamp-2">{profilePopup.profileData.bio}</p>
+                )}
+                <div className="flex justify-around py-2 border-t border-b border-gray-100">
+                  <div className="text-center cursor-pointer" onClick={() => handleStatsClick('posts', profilePopup.userId)}>
+                    <div className="font-semibold text-gray-900">{profilePopup.profileData.postsCount}</div>
+                    <div className="text-xs text-gray-500">Posts</div>
+                  </div>
+                  <div className="text-center cursor-pointer" onClick={() => handleStatsClick('followers', profilePopup.userId)}>
+                    <div className="font-semibold text-gray-900">{profilePopup.profileData.followersCount}</div>
+                    <div className="text-xs text-gray-500">Followers</div>
+                  </div>
+                  <div className="text-center cursor-pointer" onClick={() => handleStatsClick('following', profilePopup.userId)}>
+                    <div className="font-semibold text-gray-900">{profilePopup.profileData.followingCount}</div>
+                    <div className="text-xs text-gray-500">Following</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {profile?.client?.id !== profilePopup.userId && (
+                    <>
+                      <button
+                        onClick={() => handleFollowToggle(profilePopup.userId, profilePopup.profileData.isFollowing)}
+                        disabled={followLoading}
+                        className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${profilePopup.profileData.isFollowing
+                          ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                          } ${followLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {followLoading ? '...' : profilePopup.profileData.isFollowing ? 'Following' : 'Follow'}
+                      </button>
+                      <button
+                        onClick={() => handleSendMessage(profilePopup.userId, profilePopup.profileData.name)}
+                        className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300"
+                      >
+                        Message
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
-              {profilePopup.profileData.bio && (
-                <p className="text-sm text-gray-600 line-clamp-2">{profilePopup.profileData.bio}</p>
-              )}
-              <div className="flex justify-around py-2 border-t border-b border-gray-100">
-                <div className="text-center cursor-pointer" onClick={() => handleStatsClick('posts', profilePopup.userId)}>
-                  <div className="font-semibold text-gray-900">{profilePopup.profileData.postsCount}</div>
-                  <div className="text-xs text-gray-500">Posts</div>
-                </div>
-                <div className="text-center cursor-pointer" onClick={() => handleStatsClick('followers', profilePopup.userId)}>
-                  <div className="font-semibold text-gray-900">{profilePopup.profileData.followersCount}</div>
-                  <div className="text-xs text-gray-500">Followers</div>
-                </div>
-                <div className="text-center cursor-pointer" onClick={() => handleStatsClick('following', profilePopup.userId)}>
-                  <div className="font-semibold text-gray-900">{profilePopup.profileData.followingCount}</div>
-                  <div className="text-xs text-gray-500">Following</div>
-                </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-              <div className="flex gap-2">
-                {profile?.client?.id !== profilePopup.userId && (
-                  <>
-                    <button
-                      onClick={() => handleFollowToggle(profilePopup.userId, profilePopup.profileData.isFollowing)}
-                      disabled={followLoading}
-                      className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${profilePopup.profileData.isFollowing
-                        ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                        } ${followLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {followLoading ? '...' : profilePopup.profileData.isFollowing ? 'Following' : 'Follow'}
-                    </button>
-                    <button
-                      onClick={() => handleSendMessage(profilePopup.userId, profilePopup.profileData.name)}
-                      className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-300"
-                    >
-                      Message
-                    </button>
-                  </>
-                )}
-              </div>
+            )}
+            <div className="absolute bottom-0 left-1/2 transform translate-y-full -translate-x-1/2">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
             </div>
-          ) : (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          )}
-          <div className="absolute bottom-0 left-1/2 transform translate-y-full -translate-x-1/2">
-            <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-    </div>
+    </div >
   );
 };
 
