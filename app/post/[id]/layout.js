@@ -118,7 +118,8 @@ function stripHtml(html) {
 
 // Generate dynamic metadata for the post page
 export async function generateMetadata({ params }) {
-    const postId = params.id;
+    const resolvedParams = await params;
+    const postId = resolvedParams?.id;
     const post = await fetchPostData(postId);
 
     // Default metadata if post not found
@@ -164,7 +165,7 @@ export async function generateMetadata({ params }) {
             locale: 'en_US',
             images: [
                 {
-                    url: ogImageUrl || `${siteUrl}/oldman-logo.png`, // Fallback again just in case
+                    url: ogImageUrl || `${siteUrl}/oldman-logo.png`,
                     width: 1200,
                     height: 630,
                     alt: `Post by ${authorName}`,
@@ -175,16 +176,19 @@ export async function generateMetadata({ params }) {
                     {
                         url: ogVideoUrl,
                         secureUrl: ogVideoUrl,
-                        type: 'video/mp4', // Assuming mp4 or standard web video
+                        type: 'video/mp4',
                         width: 1280,
                         height: 720,
                     }
                 ]
             }),
-            article: {
-                publishedTime: post.created_at,
-                authors: [authorName],
-            },
+            // Only include article metadata for non-video posts
+            ...(!ogVideoUrl && {
+                article: {
+                    publishedTime: post.created_at,
+                    authors: [authorName],
+                },
+            }),
         },
 
         // Twitter Card tags
@@ -196,7 +200,8 @@ export async function generateMetadata({ params }) {
             ...(ogVideoUrl && {
                 players: [
                     {
-                        url: ogVideoUrl,
+                        playerUrl: ogVideoUrl,
+                        streamUrl: ogVideoUrl,
                         width: 1280,
                         height: 720,
                     }
