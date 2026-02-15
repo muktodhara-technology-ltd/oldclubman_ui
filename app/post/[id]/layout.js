@@ -31,20 +31,53 @@ async function fetchPostData(postId) {
     }
 }
 
+// Helper to get the best video URL for OG tag
+function getOgVideoUrl(post) {
+    if (!post) return null;
+
+    const baseUrl = (process.env.NEXT_PUBLIC_FILE_PATH || 'https://d154q69kxu0fuf.cloudfront.net').replace(/\/+$/, '');
+
+    // Check for post files (videos)
+    if (post.files && post.files.length > 0) {
+        const firstFile = post.files[0];
+        const filePath = firstFile.file_path || firstFile.path;
+
+        if (filePath && /\.(mp4|webm|ogg|mov|avi)$/i.test(filePath)) {
+            // Check if it's already a full URL
+            if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+                return filePath;
+            }
+
+            // Clean the path - remove leading slashes
+            const cleanPath = filePath.replace(/^\/+/, '');
+
+            // Check if path already includes 'post/' prefix
+            if (cleanPath.startsWith('post/')) {
+                return `${baseUrl}/${cleanPath}`;
+            }
+
+            // Add 'post/' prefix for post file images/videos
+            return `${baseUrl}/post/${cleanPath}`;
+        }
+    }
+    return null;
+}
+
 // Helper to get the best image URL for OG tag
 function getOgImageUrl(post) {
     if (!post) return null;
 
     const baseUrl = (process.env.NEXT_PUBLIC_FILE_PATH || 'https://d154q69kxu0fuf.cloudfront.net').replace(/\/+$/, '');
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://oldclubman.com';
 
-    // First, check for post files (images/videos)
+    // First, check for post files (images only)
     if (post.files && post.files.length > 0) {
         const firstFile = post.files[0];
         const filePath = firstFile.file_path || firstFile.path;
 
         // Skip if it's a video (no good thumbnail)
         if (filePath && /\.(mp4|webm|ogg|mov|avi)$/i.test(filePath)) {
-            // Try background_url as fallback for videos
+            // If it's a video, we fall through to check background_url or return default
         } else if (filePath) {
             // Check if it's already a full URL
             if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
@@ -73,7 +106,8 @@ function getOgImageUrl(post) {
         return `${baseUrl}/${cleanBgPath}`;
     }
 
-    return null;
+    // Default fallback image (Logo)
+    return `${siteUrl}/oldman-logo.png`;
 }
 
 // Helper to strip HTML tags from message
@@ -108,6 +142,8 @@ export async function generateMetadata({ params }) {
 
     // Get the OG image URL
     const ogImageUrl = getOgImageUrl(post);
+    // Get the OG video URL
+    const ogVideoUrl = getOgVideoUrl(post);
 
     // Construct the canonical URL
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://oldclubman.com';
@@ -124,17 +160,26 @@ export async function generateMetadata({ params }) {
             description: description,
             url: postUrl,
             siteName: 'OLD CLUB MAN',
-            type: 'article',
+            type: ogVideoUrl ? 'video.other' : 'article',
             locale: 'en_US',
-            ...(ogImageUrl && {
-                images: [
+            images: [
+                {
+                    url: ogImageUrl || `${siteUrl}/oldman-logo.png`, // Fallback again just in case
+                    width: 1200,
+                    height: 630,
+                    alt: `Post by ${authorName}`,
+                },
+            ],
+            ...(ogVideoUrl && {
+                videos: [
                     {
-                        url: ogImageUrl,
-                        width: 1200,
-                        height: 630,
-                        alt: `Post by ${authorName}`,
-                    },
-                ],
+                        url: ogVideoUrl,
+                        secureUrl: ogVideoUrl,
+                        type: 'video/mp4', // Assuming mp4 or standard web video
+                        width: 1280,
+                        height: 720,
+                    }
+                ]
             }),
             article: {
                 publishedTime: post.created_at,
@@ -144,10 +189,19 @@ export async function generateMetadata({ params }) {
 
         // Twitter Card tags
         twitter: {
-            card: ogImageUrl ? 'summary_large_image' : 'summary',
+            card: ogVideoUrl ? 'player' : (ogImageUrl ? 'summary_large_image' : 'summary'),
             title: `${authorName}'s post`,
             description: description,
-            ...(ogImageUrl && { images: [ogImageUrl] }),
+            images: [ogImageUrl || `${siteUrl}/oldman-logo.png`],
+            ...(ogVideoUrl && {
+                players: [
+                    {
+                        url: ogVideoUrl,
+                        width: 1280,
+                        height: 720,
+                    }
+                ]
+            }),
         },
 
         // Other important meta tags
