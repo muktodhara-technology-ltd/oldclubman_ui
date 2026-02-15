@@ -1,6 +1,7 @@
 "use client"
 import React, { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Cookies from 'js-cookie'
 import toast from 'react-hot-toast'
@@ -65,7 +66,16 @@ const LoginPrompt = () => {
 
                 {/* Logo/Brand Area (Optional, mimics FB's left side) */}
                 <div className="flex-shrink-0 hidden md:block">
-                    <span className="text-2xl font-bold text-blue-600">OLD CLUB MAN</span>
+                    <Link href="/">
+                        <Image
+                            src="/oldman-logo.png"
+                            alt="OLD CLUB MAN"
+                            width={120}
+                            height={40}
+                            className="object-contain h-10 w-auto"
+                            priority
+                        />
+                    </Link>
                 </div>
 
                 {/* Login Form */}
