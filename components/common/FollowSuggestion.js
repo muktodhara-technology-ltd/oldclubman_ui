@@ -3,6 +3,15 @@ import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
+// Helper function to get client image URL without duplication
+const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
+  if (!imagePath) return fallback;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  return process.env.NEXT_PUBLIC_FILE_PATH + imagePath;
+};
+
 const FollowSuggestion = () => {
   const { followSuggestion } = useSelector(({ settings }) => settings);
   const dispatch = useDispatch();
@@ -61,13 +70,10 @@ const FollowSuggestion = () => {
                   {/* Profile Picture */}
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
                     <img
-                      src={
-                        user?.image
-                          ? `${process.env.NEXT_PUBLIC_FILE_PATH}/${user.image}`
-                          : "/common-avator.jpg"
-                      }
+                      src={getClientImageUrl(user?.image)}
                       alt={user?.fname || "User"}
                       className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.src = "/common-avator.jpg"; }}
                     />
                   </div>
 
@@ -91,8 +97,8 @@ const FollowSuggestion = () => {
                   onClick={() => handleFollowToggle(user.id, isFollowed)}
                   disabled={isLoading}
                   className={`px-2 sm:px-3 py-1 text-xs font-medium rounded-full transition-colors min-w-[60px] sm:min-w-[70px] flex-shrink-0 ${isFollowed
-                      ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      : "bg-blue-500 text-white hover:bg-blue-600"
+                    ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    : "bg-blue-500 text-white hover:bg-blue-600"
                     } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   {isLoading ? (
