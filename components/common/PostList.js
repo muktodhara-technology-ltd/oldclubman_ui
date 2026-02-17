@@ -3488,9 +3488,22 @@ const PostList = ({ postsData }) => {
                       </div>
                     </div>
 
-                    <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap mb-2">
-                      {renderContentWithMentions(item?.shared_post?.message)}
-                    </div>
+                    {item?.shared_post?.background_url && /\/post_background\/.+/.test(item?.shared_post?.background_url) ? (
+                      <div
+                        className="relative text-white text-center p-4 w-full min-h-[200px] rounded-lg flex items-center justify-center bg-cover bg-center bg-no-repeat mb-2"
+                        style={{
+                          backgroundImage: `url(${item.shared_post.background_url})`,
+                        }}
+                      >
+                        <div className="dark:text-white py-2 px-6 font-bold text-sm sm:text-base md:text-[20px] leading-relaxed w-full break-words overflow-hidden whitespace-pre-wrap text-center">
+                          {renderContentWithMentions(item?.shared_post?.message)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap mb-2">
+                        {renderContentWithMentions(item?.shared_post?.message)}
+                      </div>
+                    )}
                   </div>
 
                   {/* Shared Post Files (Simplified View) */}
