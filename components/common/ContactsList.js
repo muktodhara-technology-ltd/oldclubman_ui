@@ -7,6 +7,15 @@ import { startConversation, getMessage } from '@/views/message/store';
 import Link from 'next/link';
 import ChatBox from './ChatBox';
 
+// Helper function to get client image URL without duplication
+const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
+  if (!imagePath) return fallback;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  return process.env.NEXT_PUBLIC_FILE_PATH + imagePath;
+};
+
 const ContactsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showChatBox, setShowChatBox] = useState(false);
@@ -23,9 +32,7 @@ const ContactsList = () => {
   const contacts = myFollowers?.map(follower => ({
     id: follower.id,
     name: `${follower.follower_client?.fname || ''} ${follower.follower_client?.last_name || ''}`.trim(),
-    avatar: follower.follower_client?.image
-      ? `${process.env.NEXT_PUBLIC_FILE_PATH}/${follower.follower_client.image}`
-      : "/common-avator.jpg",
+    avatar: getClientImageUrl(follower.follower_client?.image),
     isOnline: follower.follower_client?.is_online || false,
     lastSeen: follower.follower_client?.last_seen || "Unknown",
     email: follower.follower_client?.email,
@@ -50,7 +57,7 @@ const ContactsList = () => {
       const newChat = {
         is_group: 0,
         name: userData?.fname + " " + userData?.last_name,
-        avatar: userData?.image ? process.env.NEXT_PUBLIC_FILE_PATH + userData?.image : "/common-avator.jpg",
+        avatar: getClientImageUrl(userData?.image),
         user_ids: userData?.id
       };
 
