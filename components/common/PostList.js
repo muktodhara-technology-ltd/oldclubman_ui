@@ -3424,7 +3424,7 @@ const PostList = ({ postsData }) => {
             </div>
 
             <div className="post-content">
-              {item?.hasPath ?
+              {item?.hasPath && !item?.shared_post ?
                 <>
                   <div
                     className="relative text-white text-center p-4 w-full min-h-[300px] rounded-lg flex items-center justify-center bg-cover bg-center bg-no-repeat"
