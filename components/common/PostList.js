@@ -16,7 +16,8 @@ import {
   FaTimes,
   FaRegSmile,
   FaLinkedin,
-  FaFacebookF
+  FaFacebookF,
+  FaSearch
 } from "react-icons/fa";
 import { SlLike } from "react-icons/sl";
 import { IoIosShareAlt, IoMdShareAlt, IoLogoWhatsapp } from "react-icons/io";
@@ -137,6 +138,8 @@ const PostList = ({ postsData }) => {
   const [showMessengerSelect, setShowMessengerSelect] = useState(false);
   const [selectedShareUsers, setSelectedShareUsers] = useState(new Set());
   const [batchShareLoading, setBatchShareLoading] = useState(false);
+  const [shareSearchQuery, setShareSearchQuery] = useState("");
+  const [shareSearchResults, setShareSearchResults] = useState([]);
   const isSharingRef = useRef(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
@@ -2926,21 +2929,46 @@ const PostList = ({ postsData }) => {
     });
   };
 
+  // Handle user search for sharing
+  const handleShareSearch = async (query) => {
+    setShareSearchQuery(query);
+    if (!query.trim()) {
+      setShareSearchResults([]);
+      return;
+    }
+
+    try {
+      const response = await api.get(`/client/search_by_people?search=${query}`);
+      if (response.data && response.data.data && response.data.data.follow_connections) {
+        setShareSearchResults(response.data.data.follow_connections);
+      }
+    } catch (error) {
+      console.error('Error searching users for share:', error);
+    }
+  };
+
   const handleBatchShare = async () => {
     if (selectedShareUsers.size === 0) return;
 
     setBatchShareLoading(true);
     const users = Array.from(selectedShareUsers);
     let successCount = 0;
+    let failCount = 0;
 
     const postUrl = `${window.location.origin}/post/${postToShare || basicPostData?.id || ""}`;
+    console.log('🚀 Starting batch share to', users.length, 'users');
 
     for (const userId of users) {
       try {
-        const userObj = myFollowers.find(f => (f.follower_client?.id || f.id) === userId);
-        const targetId = userObj?.follower_client?.id || userObj?.id || userId;
+        let userObj = myFollowers.find(f => (f.follower_client?.id || f.id) === userId);
 
-        // Try to find existing personal chat
+        if (!userObj) {
+          userObj = shareSearchResults.find(u => u.id === userId);
+        }
+
+        const targetId = userObj?.follower_client?.id || userObj?.id || userId;
+        console.log(`📨 Processing share for userId: ${userId}, resolved targetId: ${targetId}`);
+
         const existingChat = allChat?.find(chat => {
           if (chat.type === 'personal') {
             return chat._userData?.id === targetId;
@@ -2951,29 +2979,44 @@ const PostList = ({ postsData }) => {
         let chatId = existingChat?.id;
 
         if (!chatId) {
-          const newChat = await dispatch(startConversation({
-            user_ids: String(targetId),
-            type: 'personal'
-          })).unwrap();
-          chatId = newChat?.id;
+          console.log(`💬 Creating new chat for targetId: ${targetId}`);
+          try {
+            const newChat = await dispatch(startConversation({
+              user_ids: String(targetId),
+              type: 'personal' // Ensure type is sent if required by backend
+            })).unwrap();
+            chatId = newChat?.conversation?.id || newChat?.id;
+          } catch (createError) {
+            console.error(`❌ Failed to create chat with ${targetId}:`, createError);
+          }
         }
 
         if (chatId) {
-          const formData = new FormData();
-          formData.append('message', postUrl);
-          formData.append('type', 'text');
-
-          await dispatch(sendMessage({ chatId, formData })).unwrap();
+          console.log(`✅ Sending message to chatId: ${chatId}`);
+          await dispatch(sendMessage({
+            chatId,
+            content: postUrl,
+            type: 'text'
+          })).unwrap();
           successCount++;
+        } else {
+          console.warn(`⚠️ Could not get chatId for user ${targetId}`);
+          failCount++;
         }
 
       } catch (err) {
-        console.error(`Failed to send to user ${userId}`, err);
+        console.error(`❌ Failed to send to user ${userId}`, err);
+        failCount++;
       }
     }
 
     setBatchShareLoading(false);
-    toast.success(`Sent to ${successCount} users`);
+    if (successCount > 0) {
+      toast.success(`Sent to ${successCount} users`);
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to send to ${failCount} users`);
+    }
     cancelShare();
   };
 
@@ -4811,50 +4854,84 @@ const PostList = ({ postsData }) => {
             </div>
 
             <div className="p-4 overflow-y-auto">
-              <div className="flex justify-between items-center mb-4 px-1">
-                <h5 className="text-sm font-medium text-gray-700">Select Friends</h5>
+
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  placeholder="Search people..."
+                  value={shareSearchQuery}
+                  onChange={(e) => handleShareSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaSearch className="h-3.5 w-3.5 text-gray-400" />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mb-2 px-1">
+                <h5 className="text-sm font-medium text-gray-700">
+                  {shareSearchQuery.trim() ? "Search Results" : "Select Friends"}
+                </h5>
                 <span className="text-xs text-gray-500">{selectedShareUsers.size} selected</span>
               </div>
-              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-2">
-                {myFollowers && myFollowers.length > 0 ? (
-                  myFollowers.map((follower, idx) => {
-                    const userId = follower.follower_client?.id || follower.id;
-                    const isSelected = selectedShareUsers.has(userId);
+
+              <div className="max-h-[50vh] overflow-y-auto pr-1 space-y-2">
+                {(() => {
+                  const usersToDisplay = shareSearchQuery.trim() ? shareSearchResults : myFollowers;
+                  const hasUsers = usersToDisplay && usersToDisplay.length > 0;
+
+                  if (!hasUsers) {
+                    return <p className="text-center text-sm text-gray-500 p-4">{shareSearchQuery.trim() ? "No users found." : "No followers found."}</p>;
+                  }
+
+                  return usersToDisplay.map((user, idx) => {
+                    // Normalize user object: 
+                    // Followers have `follower_client`, search results are direct user objects
+                    const userData = user.follower_client || user;
+                    const userId = userData.id; // User ID is always at root of user object for search, or in follower_client
+
+                    // Fallback for ID if strict structure fails (shouldn't happen based on API)
+                    const finalId = userId || user.id;
+
+                    const isSelected = selectedShareUsers.has(finalId);
+
                     return (
                       <div
-                        key={idx}
+                        key={`${finalId}-${idx}`}
                         className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                        onClick={() => handleUserSelect(userId)}
+                        onClick={() => handleUserSelect(finalId)}
                       >
-                        <div className="relative">
-                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100">
+                        <div className="relative shrink-0">
+                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 bg-gray-100">
                             <img
-                              src={getClientImageUrl(follower?.follower_client?.image || follower?.image)}
-                              alt={follower?.follower_client?.fname || follower.name}
+                              src={getClientImageUrl(userData.image)}
+                              alt={userData.fname || userData.name || "User"}
                               className="w-full h-full object-cover"
                               onError={(e) => { e.target.src = "/common-avator.jpg"; }}
                             />
                           </div>
-                          {/* Checkbox indicator */}
-                          <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-gray-200'}`}>
-                            {isSelected && <FaLink className="text-[10px] text-white" />} {/* Reusing FaLink as checkmark-ish or use standard check */}
+                          <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                            {isSelected && <FaLink className="text-[10px] text-white" />}
                           </div>
                         </div>
-                        <span className="text-sm text-gray-700 font-medium truncate flex-1">
-                          {follower?.follower_client?.fname || follower.name || "User"}
-                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-gray-900 truncate">
+                            {userData.fname ? `${userData.fname} ${userData.last_name || ''}` : userData.name || "User"}
+                          </div>
+                          {userData.username && <div className="text-xs text-gray-500 truncate">@{userData.username}</div>}
+                        </div>
+
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => { }} // handled by parent div click
+                          onChange={() => { }}
                           className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                         />
                       </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-center text-sm text-gray-500 p-4">No followers found to share with.</p>
-                )}
+                    );
+                  });
+                })()}
               </div>
             </div>
 
