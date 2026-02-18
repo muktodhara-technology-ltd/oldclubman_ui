@@ -14,11 +14,13 @@ import {
   FaUsers,
   FaBookOpen,
   FaTimes,
-  FaRegSmile
+  FaRegSmile,
+  FaLinkedin,
+  FaFacebookF
 } from "react-icons/fa";
 import { SlLike } from "react-icons/sl";
 import { IoIosShareAlt, IoMdShareAlt, IoLogoWhatsapp } from "react-icons/io";
-import { FaRegComment } from "react-icons/fa6";
+import { FaRegComment, FaXTwitter } from "react-icons/fa6";
 import { BsMessenger } from "react-icons/bs";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -4655,7 +4657,7 @@ const PostList = ({ postsData }) => {
                 <h4 className="font-semibold text-gray-900 mb-4 text-[17px]">Send in Messenger</h4>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {myFollowers && myFollowers.length > 0 ? (
-                    myFollowers.slice(0, 10).map((follower, idx) => (
+                    myFollowers.map((follower, idx) => (
                       <div
                         key={idx}
                         className="flex flex-col items-center gap-1 min-w-[70px] cursor-pointer group"
@@ -4713,8 +4715,8 @@ const PostList = ({ postsData }) => {
                     }}
                     className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
                   >
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                      <IoLogoWhatsapp className="text-2xl text-green-500" />
+                    <div className="w-14 h-14 rounded-full bg-[#25D366] flex items-center justify-center group-hover:bg-[#20bd5a] transition-colors">
+                      <IoLogoWhatsapp className="text-2xl text-white" />
                     </div>
                     <span className="text-xs text-gray-600 font-medium">WhatsApp</span>
                   </button>
@@ -4728,10 +4730,40 @@ const PostList = ({ postsData }) => {
                     }}
                     className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
                   >
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                      <span className="font-bold text-xl text-blue-600">f</span>
+                    <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center group-hover:bg-blue-700 transition-colors">
+                      <FaFacebookF className="text-2xl text-white" />
                     </div>
                     <span className="text-xs text-gray-600 font-medium">Facebook</span>
+                  </button>
+
+                  {/* X (formerly Twitter) */}
+                  <button
+                    onClick={() => {
+                      const postUrl = `${window.location.origin}/post/${postToShare}`;
+                      const twitterShareUrl = `https://x.com/intent/tweet?url=${encodeURIComponent(postUrl)}`;
+                      window.open(twitterShareUrl, '_blank', 'width=600,height=400');
+                    }}
+                    className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-black flex items-center justify-center group-hover:bg-gray-800 transition-colors">
+                      <FaXTwitter className="text-2xl text-white" />
+                    </div>
+                    <span className="text-xs text-gray-600 font-medium">X</span>
+                  </button>
+
+                  {/* LinkedIn */}
+                  <button
+                    onClick={() => {
+                      const postUrl = `${window.location.origin}/post/${postToShare}`;
+                      const linkedinShareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`;
+                      window.open(linkedinShareUrl, '_blank', 'width=600,height=400');
+                    }}
+                    className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-[#0077b5] flex items-center justify-center group-hover:bg-[#006097] transition-colors">
+                      <FaLinkedin className="text-2xl text-white" />
+                    </div>
+                    <span className="text-xs text-gray-600 font-medium">LinkedIn</span>
                   </button>
 
                   {/* Copy Link */}
