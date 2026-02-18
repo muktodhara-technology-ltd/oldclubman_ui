@@ -946,8 +946,12 @@ const PostModal = () => {
     // Get the current plain text content
     const plainText = getPlainTextFromHtml(editor.innerHTML || "");
 
-    // Update Redux state - let the effect handle the UI update
-    dispatch(bindPostData({ ...basicPostData, message: plainText }));
+    // Set the plain text content directly (don't clear the editor)
+    // This preserves the text when switching between backgrounds
+    editor.innerText = plainText;
+
+    // Update Redux state
+    dispatch(bindPostData({ ...basicPostData, message: plainText + " " }));
     setSelectedBackground(background);
   };
 
@@ -956,26 +960,22 @@ const PostModal = () => {
     if (messageEditorRef.current) {
       const currentPlainText = messageEditorRef.current.innerText || '';
 
-      // Convert plain text to HTML paragraphs for restoration
+      // Convert plain text to HTML paragraphs
       let contentToRestore;
       if (currentPlainText.trim()) {
         contentToRestore = currentPlainText.split('\n').map(line =>
           line.trim() ? `<p>${line.trim()}</p>` : '<p><br></p>'
         ).join('');
       } else {
-        // If no text, restore stored content (or empty if none)
+        // If no text, restore stored content
         contentToRestore = storedRichMessageRef.current || '';
       }
 
-      // Update stored reference so the effect uses this new content
-      storedRichMessageRef.current = contentToRestore;
-
-      // Update Redux state immediately (optional, but good for consistency)
-      // The effect will also ensure this, but dispatching here updates basicPostData.message
-      // so the effect might skip dispatching if it matches.
+      messageEditorRef.current.innerHTML = contentToRestore;
       dispatch(bindPostData({ ...basicPostData, message: contentToRestore }));
+      previousMessageRef.current = contentToRestore;
+      storedRichMessageRef.current = '';
     }
-
     setSelectedBackground(null);
   };
 
@@ -1097,6 +1097,10 @@ const PostModal = () => {
       storedRichMessageRef.current = currentHtml;
       const plainText = getPlainTextFromHtml(currentHtml);
 
+      if (messageEditorRef.current) {
+        messageEditorRef.current.innerText = plainText;
+      }
+
       previousMessageRef.current = plainText;
 
       if (basicPostData?.message !== plainText) {
@@ -1104,6 +1108,10 @@ const PostModal = () => {
       }
     } else if (!isBackgroundActive && wasBackgroundActive) {
       const restoredHtml = storedRichMessageRef.current || basicPostData?.message || '';
+
+      if (messageEditorRef.current) {
+        messageEditorRef.current.innerHTML = restoredHtml;
+      }
 
       previousMessageRef.current = restoredHtml;
 
