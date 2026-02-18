@@ -946,12 +946,8 @@ const PostModal = () => {
     // Get the current plain text content
     const plainText = getPlainTextFromHtml(editor.innerHTML || "");
 
-    // Set the plain text content directly (don't clear the editor)
-    // This preserves the text when switching between backgrounds
-    editor.innerText = plainText;
-
-    // Update Redux state
-    dispatch(bindPostData({ ...basicPostData, message: plainText + " " }));
+    // Update Redux state - let the effect handle the UI update
+    dispatch(bindPostData({ ...basicPostData, message: plainText }));
     setSelectedBackground(background);
   };
 
@@ -960,22 +956,30 @@ const PostModal = () => {
     if (messageEditorRef.current) {
       const currentPlainText = messageEditorRef.current.innerText || '';
 
-      // Convert plain text to HTML paragraphs
+      // Convert plain text to HTML paragraphs for restoration
       let contentToRestore;
       if (currentPlainText.trim()) {
         contentToRestore = currentPlainText.split('\n').map(line =>
           line.trim() ? `<p>${line.trim()}</p>` : '<p><br></p>'
         ).join('');
       } else {
-        // If no text, restore stored content
+        // If no text, restore stored content (or empty if none)
         contentToRestore = storedRichMessageRef.current || '';
       }
 
-      messageEditorRef.current.innerHTML = contentToRestore;
+      // Update stored reference so the effect uses this new content
+      storedRichMessageRef.current = contentToRestore;
+
+      // Update Redux state immediately
       dispatch(bindPostData({ ...basicPostData, message: contentToRestore }));
-      previousMessageRef.current = contentToRestore;
-      storedRichMessageRef.current = '';
+
+      // Clear styles to prevent ghosting
+      messageEditorRef.current.style.color = "";
+      messageEditorRef.current.style.fontWeight = "";
+      messageEditorRef.current.style.fontSize = "";
+      messageEditorRef.current.style.textAlign = "";
     }
+
     setSelectedBackground(null);
   };
 
@@ -1097,10 +1101,6 @@ const PostModal = () => {
       storedRichMessageRef.current = currentHtml;
       const plainText = getPlainTextFromHtml(currentHtml);
 
-      if (messageEditorRef.current) {
-        messageEditorRef.current.innerText = plainText;
-      }
-
       previousMessageRef.current = plainText;
 
       if (basicPostData?.message !== plainText) {
@@ -1108,10 +1108,6 @@ const PostModal = () => {
       }
     } else if (!isBackgroundActive && wasBackgroundActive) {
       const restoredHtml = storedRichMessageRef.current || basicPostData?.message || '';
-
-      if (messageEditorRef.current) {
-        messageEditorRef.current.innerHTML = restoredHtml;
-      }
 
       previousMessageRef.current = restoredHtml;
 
@@ -1141,12 +1137,24 @@ const PostModal = () => {
       editor.style.fontWeight = "bold"
       editor.style.fontSize = "24px"
       editor.style.textAlign = "center"
+    } else {
+      // Clear styles if no background
+      editor.style.color = ""
+      editor.style.fontWeight = ""
+      editor.style.fontSize = ""
+      editor.style.textAlign = ""
     }
 
     if (plainLength > 280) {
       setIsVisibleBg(false);
       setSelectedBackground(null);
       storedRichMessageRef.current = '';
+
+      // Clear styles immediately as selectedBackground change won't trigger re-run of this function
+      editor.style.color = ""
+      editor.style.fontWeight = ""
+      editor.style.fontSize = ""
+      editor.style.textAlign = ""
     } else {
       setIsVisibleBg(true);
     }
