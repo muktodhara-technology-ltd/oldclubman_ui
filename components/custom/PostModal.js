@@ -974,7 +974,7 @@ const PostModal = () => {
       messageEditorRef.current.innerHTML = contentToRestore;
       dispatch(bindPostData({ ...basicPostData, message: contentToRestore }));
       previousMessageRef.current = contentToRestore;
-      storedRichMessageRef.current = '';
+      storedRichMessageRef.current = +' ';
     }
     setSelectedBackground(null);
   };
