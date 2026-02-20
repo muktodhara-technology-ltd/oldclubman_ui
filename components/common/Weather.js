@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FaCloudSun, FaSun, FaCloud, FaCloudRain, FaSnowflake, FaBolt, FaSmog } from 'react-icons/fa';
+import { useSelector } from 'react-redux';
 
 const Weather = () => {
+    const { profile } = useSelector((state) => state.settings ? state.settings : { profile: null });
     const [weatherData, setWeatherData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [unit, setUnit] = useState('C'); // 'C' or 'F'
+    const weatherFetched = useRef(false);
 
     useEffect(() => {
         // Update time every minute
@@ -15,6 +18,13 @@ const Weather = () => {
     }, []);
 
     useEffect(() => {
+        // Wait till profile is loaded or at least attempted
+        // But to not hang forever if profile is null but no fetch happens, we just check if it has client data or if it's empty
+        // Usually profile is populated quickly by parent components.
+        // We will attempt weather fetch once when profile.client exists or after a timeout.
+
+        let timeoutId;
+
         const fetchWeather = async (lat, lon) => {
             try {
                 // Using Open-Meteo API (Free, no key required)
@@ -102,8 +112,53 @@ const Weather = () => {
             }
         };
 
-        getLocation();
-    }, []);
+        const fetchWeatherByCity = async (cityName) => {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&limit=1`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    fetchWeather(lat, lon);
+                } else {
+                    console.warn("City not found for user profile location");
+                    getLocation();
+                }
+            } catch (err) {
+                console.error("Geocoding error for profile location:", err);
+                getLocation();
+            }
+        };
+
+        const startFetching = () => {
+            if (weatherFetched.current) return;
+            weatherFetched.current = true;
+
+            const currentCity = profile?.client?.currentstate?.name || profile?.client?.fromcity?.name;
+
+            if (currentCity) {
+                fetchWeatherByCity(currentCity);
+            } else {
+                getLocation();
+            }
+        };
+
+        // If profile client exists, start immediately
+        if (profile?.client) {
+            startFetching();
+        } else {
+            // Otherwise give redex 1 second to fetch profile, if not just proceed
+            if (!weatherFetched.current) {
+                timeoutId = setTimeout(() => {
+                    startFetching();
+                }, 1000);
+            }
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [profile]);
 
     // Helper to get icon based on WMO weather code from Open-Meteo
     const getWeatherIcon = (code) => {
