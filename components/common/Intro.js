@@ -5,6 +5,7 @@ import { getMyProfile } from '@/views/settings/store';
 
 import { getWalletBalance } from '@/views/wallet/store';
 import Weather from './Weather';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Helper function to get client image URL without duplication
 const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
@@ -67,6 +68,27 @@ const Intro = () => {
       </div>
 
       <Weather />
+
+      {/* QR Code Section */}
+      {profile?.client?.username && (
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden mt-1 p-4">
+          <h3 className="text-sm font-semibold text-gray-700 text-center mb-3">Scan to view profile</h3>
+          <div className="flex justify-center">
+            <div className="bg-white p-3 rounded-lg border border-gray-100">
+              <QRCodeSVG
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/${profile.client.username}`}
+                size={140}
+                level="H"
+                includeMargin={false}
+                bgColor="#ffffff"
+                fgColor="#1a1a2e"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 text-center mt-2">@{profile.client.username}</p>
+        </div>
+      )}
+
     </div>
   )
 }
