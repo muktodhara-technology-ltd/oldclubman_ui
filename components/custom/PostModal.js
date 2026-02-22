@@ -1091,7 +1091,7 @@ const PostModal = () => {
     }
 
     previousMessageRef.current = nextHtml;
-  }, [basicPostData?.message, isPostModalOpen]);
+  }, [basicPostData?.message, isPostModalOpen, isBackgroundActive]);
 
   useEffect(() => {
     const wasBackgroundActive = prevBackgroundActiveRef.current;
@@ -1653,6 +1653,7 @@ const PostModal = () => {
                   selectedBackground?.id !== "white" &&
                   plainMessageLength < 280 ? (
                   <div
+                    key="bg-editor"
                     className="relative w-full min-h-[400px] rounded-lg flex items-center justify-center bg-cover bg-center bg-no-repeat"
                     style={{
                       backgroundImage: selectedBackground?.image?.url
@@ -1671,6 +1672,7 @@ const PostModal = () => {
                       <div
                         ref={messageEditorRef}
                         className="w-full border-0 resize-none outline-none p-4 text-white text-center bg-transparent min-h-[120px] max-h-[200px] text-[24px] font-medium whitespace-pre-wrap break-words"
+                        style={{ color: 'white', textAlign: 'center', fontWeight: 'bold', fontSize: '24px' }}
                         contentEditable
                         role="textbox"
                         aria-multiline="true"
@@ -1682,7 +1684,7 @@ const PostModal = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="relative">
+                  <div key="normal-editor" className="relative">
                     {!plainMessageLength && (
                       <span
                         aria-hidden="true"
