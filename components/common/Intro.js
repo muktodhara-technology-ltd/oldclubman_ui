@@ -88,7 +88,6 @@ const Intro = () => {
           <p className="text-xs text-gray-400 text-center mt-2">@{profile.client.username}</p>
         </div>
       )}
-
     </div>
   )
 }
