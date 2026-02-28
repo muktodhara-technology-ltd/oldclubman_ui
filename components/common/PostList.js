@@ -3433,7 +3433,8 @@ const PostList = ({ postsData }) => {
                     ref={dropdownRef}
                     className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20"
                   >
-                    {profile?.client?.id === item?.client?.id && !item?.post_location &&
+                    {profile?.client?.id === item?.client?.id && !(item?.post_location?.length > 0) &&
+                      item?.created_at && moment().diff(moment(item.created_at), 'minutes') < 15 &&
                       <button
                         onClick={() => handleEditPost(item.id)}
                         className="cursor-pointer flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
