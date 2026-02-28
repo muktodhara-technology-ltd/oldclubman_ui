@@ -42,7 +42,7 @@ const Settings = () => {
 
   return (
     <FeedLayout showMsgBtn={false} showFriends={true} userProfile={true} hideSearch>
-      <div className="mx-auto pt-3">
+      <div className="mx-auto pt-3 px-2">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar */}
           <div className="w-full h-full md:w-60 bg-white rounded-lg shadow-sm overflow-hidden">

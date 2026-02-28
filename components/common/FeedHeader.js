@@ -11,10 +11,11 @@ import {
   FaInfoCircle,
   FaUsers,
   FaCog,
+  FaEye,
 } from "react-icons/fa";
 import { IoMdMore } from "react-icons/io";
 import toast from "react-hot-toast";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import {
   followTo,
   getAllFollowers,
@@ -60,6 +61,8 @@ function FeedHeader({
   const data = userProfile ? userProfileData : profile;
   const pathname = usePathname();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const isViewAsPublic = searchParams.get('viewas') === 'public';
   const dispatch = useDispatch();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNavDropdown, setShowNavDropdown] = useState(false);
@@ -170,7 +173,7 @@ function FeedHeader({
 
 
 
-  const isMyProfile = data?.client?.id === profile?.client?.id;
+  const isMyProfile = isViewAsPublic ? false : data?.client?.id === profile?.client?.id;
   // console.log('isMyProfile',isMyProfile)
   // console.log('data?.client',data?.client)
   const isLinkActive = (path) => {
@@ -930,6 +933,20 @@ function FeedHeader({
   return (
     // <div className="w-full px-0 sm:px-15 md:px-0 xl:px-0">
     <div className="w-full max-w-7xl mx-auto">
+      {isViewAsPublic && (
+        <div className="bg-blue-600 text-white px-4 py-2 flex items-center justify-between rounded-t-md">
+          <div className="flex items-center gap-2">
+            <FaEye />
+            <span className="text-sm font-medium">You are viewing your profile as the public sees it</span>
+          </div>
+          <Link
+            href={`/${profile?.client?.username}`}
+            className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-blue-50 transition"
+          >
+            Exit Public View
+          </Link>
+        </div>
+      )}
       {/* Cover Photo */}
       <div className="cover-photo rounded-md relative w-full h-90 overflow-hidden group">
         <div className="absolute inset-0 w-full">
@@ -1228,6 +1245,20 @@ function FeedHeader({
                             <FaCog className="text-lg" />
                             <span className="font-medium">Settings</span>
                           </Link>
+
+                          {isMyProfile && (
+                            <>
+                              <div className="border-t border-gray-200 my-2"></div>
+                              <Link
+                                href={`/${profile?.client?.username}?viewas=public`}
+                                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-100 transition-colors text-gray-700"
+                                onClick={() => setShowNavDropdown(false)}
+                              >
+                                <FaEye className="text-lg" />
+                                <span className="font-medium">View as Public</span>
+                              </Link>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
