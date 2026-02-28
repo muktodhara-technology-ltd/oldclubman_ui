@@ -970,8 +970,8 @@ const PostModal = () => {
       // Update stored reference so the effect uses this new content
       storedRichMessageRef.current = contentToRestore;
 
-      // Update Redux state immediately
-      dispatch(bindPostData({ ...basicPostData, message: contentToRestore }));
+      // Update Redux state immediately - also clear background_url
+      dispatch(bindPostData({ ...basicPostData, message: contentToRestore, background_url: null }));
 
       // Clear styles to prevent ghosting
       messageEditorRef.current.style.color = "";
@@ -1404,7 +1404,15 @@ const PostModal = () => {
       }
 
       if (messageContent?.length < 280 && selectedBackground) {
-        formData.append('background_url', selectedBackground?.image?.path);
+        const bgUrl = typeof selectedBackground === 'string'
+          ? selectedBackground
+          : selectedBackground?.image?.path;
+        if (bgUrl) {
+          formData.append('background_url', bgUrl);
+        }
+      } else if (id) {
+        // Editing a post - explicitly send empty/null background_url to clear it
+        formData.append('background_url', '');
       }
 
       // Add files if present (only images - videos are uploaded directly to S3)
