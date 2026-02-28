@@ -124,6 +124,7 @@ const PostList = ({ postsData }) => {
   const [replyInputs, setReplyInputs] = useState({});
   const [commentReplies, setCommentReplies] = useState({});
   const [openDropdownFor, setOpenDropdownFor] = useState(null);
+  const [deleteConfirmPostId, setDeleteConfirmPostId] = useState(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [modalCommentLikes, setModalCommentLikes] = useState({});
   const [modalReplyInputs, setModalReplyInputs] = useState({});
@@ -1892,14 +1893,20 @@ const PostList = ({ postsData }) => {
   };
 
   const handleDeletePost = (postId) => {
-    dispatch(deletePost(postId))
+    setDeleteConfirmPostId(postId);
+    setOpenDropdownFor(null);
+  };
+
+  const confirmDeletePost = () => {
+    if (!deleteConfirmPostId) return;
+    dispatch(deletePost(deleteConfirmPostId))
       .then(() => {
         dispatch(getPosts());
-        setOpenDropdownFor(null);
+        setDeleteConfirmPostId(null);
       })
       .catch(() => {
-        alert("Failed to update privacy");
-        setOpenDropdownFor(null);
+        alert("Failed to delete post");
+        setDeleteConfirmPostId(null);
       });
   };
 
@@ -5042,6 +5049,30 @@ const PostList = ({ postsData }) => {
           </div>
         )
       }
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmPostId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteConfirmPostId(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Post</h3>
+            <p className="text-sm text-gray-600 mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmPostId(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                No
+              </button>
+              <button
+                onClick={confirmDeletePost}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div >
   );
