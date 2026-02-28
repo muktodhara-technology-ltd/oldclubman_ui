@@ -3507,7 +3507,7 @@ const PostList = ({ postsData }) => {
                     {renderContentWithMentions(item?.message)}
                   </div>
                   {/* See more / See less button */}
-                  {item?.message && item.message.length > 150 && (
+                  {item?.message && (item.message.length > 150 || (item.message.match(/\n/g) || []).length >= 3) && (
                     <button
                       className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
                       onClick={() => togglePostExpansion(item.id)}
@@ -3554,7 +3554,25 @@ const PostList = ({ postsData }) => {
                       </div>
                     ) : (
                       <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap mb-2">
-                        {renderContentWithMentions(item?.shared_post?.message)}
+                        <div
+                          className={expandedPosts.has(`shared_${item.id}`) ? '' : 'line-clamp-2'}
+                          style={!expandedPosts.has(`shared_${item.id}`) ? {
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                          } : {}}
+                        >
+                          {renderContentWithMentions(item?.shared_post?.message)}
+                        </div>
+                        {item?.shared_post?.message && (item.shared_post.message.length > 150 || (item.shared_post.message.match(/\n/g) || []).length >= 3) && (
+                          <button
+                            className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
+                            onClick={() => togglePostExpansion(`shared_${item.id}`)}
+                          >
+                            {expandedPosts.has(`shared_${item.id}`) ? 'See less' : 'See more'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -9,6 +9,30 @@ import api from "@/helpers/axios";
 import errorResponse from "@/utility";
 import { useDispatch, useSelector } from "react-redux";
 import { bindProfileData, getMyProfile, storeBsicInformation, saveEducation, saveWork, getUserProfileByUsername } from "../store";
+import { FaUser, FaAddressCard, FaIdCard, FaBriefcase } from "react-icons/fa";
+
+const Section = ({ title, icon, children }) => (
+  <div className="mb-6 border border-gray-200 rounded-sm overflow-hidden">
+    <div className="bg-gray-100 px-4 py-3 flex items-center border-b border-gray-200">
+      {icon && <span className="mr-3 text-gray-700">{icon}</span>}
+      <h3 className="text-gray-700 font-bold text-sm tracking-wide">{title}</h3>
+    </div>
+    <div className="bg-white">
+      {children}
+    </div>
+  </div>
+);
+
+const FormRow = ({ label, children, isLast }) => (
+  <div className={`flex flex-col md:flex-row py-4 px-4 hover:bg-gray-50 transition-colors ${!isLast ? 'border-b border-gray-200' : ''}`}>
+    <div className="w-full md:w-1/3 mb-2 md:mb-0 flex items-center">
+      <span className="text-sm font-bold text-gray-700">{label}</span>
+    </div>
+    <div className="w-full md:w-2/3">
+      {children}
+    </div>
+  </div>
+);
 
 const BasicInformation = () => {
   const { profileData, loading, profile } = useSelector(({ settings }) => settings);
@@ -58,7 +82,7 @@ const BasicInformation = () => {
     cell_number
   } = profileData;
 
-  console.log('profileData from basick form',profileData)
+  console.log('profileData from basick form', profileData)
 
   const [countries, setCountries] = useState([]);
   const [countryCodes, setCountryCodes] = useState([]);
@@ -216,7 +240,7 @@ const BasicInformation = () => {
     }
 
     console.log('submittedData', JSON.stringify(submittedData, null, 2))
-    
+
     try {
       // Save basic information
       await dispatch(storeBsicInformation(submittedData)).unwrap();
@@ -269,7 +293,7 @@ const BasicInformation = () => {
 
     const handleSaveWork = () => {
       const workId = editingWorkId || `work_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       const newWork = {
         id: workId,
         ...workFormData,
@@ -280,8 +304,8 @@ const BasicInformation = () => {
       let currentWorkEntries = [];
       if (workDataForShow && workDataForShow.length > 0) {
         try {
-          currentWorkEntries = typeof workDataForShow[0].meta_value === 'string' 
-            ? JSON.parse(workDataForShow[0].meta_value) 
+          currentWorkEntries = typeof workDataForShow[0].meta_value === 'string'
+            ? JSON.parse(workDataForShow[0].meta_value)
             : workDataForShow[0].meta_value || [];
         } catch (error) {
           console.error('Error parsing current work data:', error);
@@ -291,7 +315,7 @@ const BasicInformation = () => {
 
       let updatedWorkEntries;
       if (editingWorkId) {
-        updatedWorkEntries = currentWorkEntries.map(work => 
+        updatedWorkEntries = currentWorkEntries.map(work =>
           work.id === editingWorkId ? newWork : work
         );
       } else {
@@ -322,7 +346,7 @@ const BasicInformation = () => {
         description: workFormData?.description,
         status: 1,
       };
-      
+
       dispatch(saveWork(submittedData));
       dispatch(storeBsicInformation(saveData))
         .then(() => {
@@ -366,7 +390,7 @@ const BasicInformation = () => {
 
     const handleDeleteWork = (data, id) => {
       const updatedWorkEntries = data?.filter(work => work.id !== id);
-      
+
       const metas = [
         {
           meta_key: 'WORK',
@@ -389,18 +413,17 @@ const BasicInformation = () => {
     };
 
     return (
-      <div className="col-span-1 md:col-span-3 bg-white rounded-lg border border-gray-100 p-4 mb-4">
-        <h3 className="text-lg font-semibold mb-4">Work Experience</h3>
+      <div className="w-full">
 
         {/* Display work entries */}
         {workDataForShow && workDataForShow.length > 0 && workDataForShow.map((workData, index) => {
-          const workEntries = typeof workData.meta_value === 'string' 
-            ? JSON.parse(workData.meta_value) 
+          const workEntries = typeof workData.meta_value === 'string'
+            ? JSON.parse(workData.meta_value)
             : workData.meta_value || [];
-          
+
           return Array.isArray(workEntries) ? workEntries.map((entry, entryIndex) => {
             const uniqueId = entry.id || `work_${index}_${entryIndex}_${Date.now()}`;
-            
+
             return (
               <div key={uniqueId} className="flex items-center mb-3 last:mb-0 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1 text-sm text-gray-700">
@@ -413,16 +436,16 @@ const BasicInformation = () => {
                   )}
                 </div>
 
-                <button 
+                <button
                   className="text-gray-400 ml-2 hover:text-gray-600"
-                  onClick={() => handleEditWork({...entry, id: entry.id || uniqueId})}
+                  onClick={() => handleEditWork({ ...entry, id: entry.id || uniqueId })}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                   </svg>
                 </button>
 
-                <button 
+                <button
                   className="text-red-400 ml-2 hover:text-red-600"
                   onClick={() => handleDeleteWork(workEntries, entry.id || uniqueId)}
                 >
@@ -435,10 +458,10 @@ const BasicInformation = () => {
           }) : null;
         })}
 
-        {(!workDataForShow || workDataForShow.length === 0 || 
+        {(!workDataForShow || workDataForShow.length === 0 ||
           (workDataForShow[0] && (!workDataForShow[0].meta_value || JSON.parse(workDataForShow[0].meta_value || '[]').length === 0))) && (
-          <div className="text-gray-500 text-sm py-2">No work experience added yet</div>
-        )}
+            <div className="text-gray-500 text-sm py-2">No work experience added yet</div>
+          )}
 
         {/* Add/Edit Work Form */}
         {(isAddingWork || editingWorkId) && (
@@ -509,7 +532,7 @@ const BasicInformation = () => {
 
         {/* Add Work Button */}
         {!isAddingWork && !editingWorkId && (
-          <button 
+          <button
             className="flex items-center text-blue-600 hover:text-blue-700 transition-colors mt-4"
             onClick={handleAddWork}
           >
@@ -568,7 +591,7 @@ const BasicInformation = () => {
 
     const handleSaveEducation = () => {
       const educationId = editingEducationId || `education_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       const newEducation = {
         id: educationId,
         ...educationFormData,
@@ -579,8 +602,8 @@ const BasicInformation = () => {
       let currentEducationEntries = [];
       if (educationDataShow && educationDataShow.length > 0) {
         try {
-          currentEducationEntries = typeof educationDataShow[0].meta_value === 'string' 
-            ? JSON.parse(educationDataShow[0].meta_value) 
+          currentEducationEntries = typeof educationDataShow[0].meta_value === 'string'
+            ? JSON.parse(educationDataShow[0].meta_value)
             : educationDataShow[0].meta_value || [];
         } catch (error) {
           console.error('Error parsing current education data:', error);
@@ -590,7 +613,7 @@ const BasicInformation = () => {
 
       let updatedEducationEntries;
       if (editingEducationId) {
-        updatedEducationEntries = currentEducationEntries.map(education => 
+        updatedEducationEntries = currentEducationEntries.map(education =>
           education.id === editingEducationId ? newEducation : education
         );
       } else {
@@ -622,7 +645,7 @@ const BasicInformation = () => {
         description: educationFormData?.description,
         status: 1,
       };
-      
+
       dispatch(saveEducation(submittedData));
       dispatch(storeBsicInformation(saveData))
         .then(() => {
@@ -668,7 +691,7 @@ const BasicInformation = () => {
 
     const handleDeleteEducation = (data, id) => {
       const updatedEducationEntries = data?.filter(education => education.id !== id);
-      
+
       const metas = [
         {
           meta_key: 'EDUCATION',
@@ -691,13 +714,12 @@ const BasicInformation = () => {
     };
 
     return (
-      <div className="col-span-1 md:col-span-3 bg-white rounded-lg border border-gray-100 p-4 mb-4">
-        <h3 className="text-lg font-semibold mb-4">Education</h3>
+      <div className="w-full">
 
         {/* Display education entries */}
         {educationDataShow && educationDataShow.length > 0 && educationDataShow.map((educationData, index) => {
           let educationEntries = [];
-          
+
           try {
             if (typeof educationData.meta_value === 'string') {
               educationEntries = JSON.parse(educationData.meta_value);
@@ -710,10 +732,10 @@ const BasicInformation = () => {
             console.error('Error parsing education data:', error);
             educationEntries = [];
           }
-          
+
           return Array.isArray(educationEntries) ? educationEntries.map((entry, entryIndex) => {
             const uniqueId = entry.id || `education_${index}_${entryIndex}_${Date.now()}`;
-            
+
             return (
               <div key={uniqueId} className="flex items-center mb-3 last:mb-0 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1 text-sm text-gray-700">
@@ -729,16 +751,16 @@ const BasicInformation = () => {
                   )}
                 </div>
 
-                <button 
+                <button
                   className="text-gray-400 ml-2 hover:text-gray-600"
-                  onClick={() => handleEditEducation({...entry, id: entry.id || uniqueId})}
+                  onClick={() => handleEditEducation({ ...entry, id: entry.id || uniqueId })}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                   </svg>
                 </button>
 
-                <button 
+                <button
                   className="text-red-400 ml-2 hover:text-red-600"
                   onClick={() => handleDeleteEducation(educationEntries, entry.id || uniqueId)}
                 >
@@ -751,10 +773,10 @@ const BasicInformation = () => {
           }) : null;
         })}
 
-        {(!educationDataShow || educationDataShow.length === 0 || 
+        {(!educationDataShow || educationDataShow.length === 0 ||
           (educationDataShow[0] && (!educationDataShow[0].meta_value || JSON.parse(educationDataShow[0].meta_value || '[]').length === 0))) && (
-          <div className="text-gray-500 text-sm py-2">No education added yet</div>
-        )}
+            <div className="text-gray-500 text-sm py-2">No education added yet</div>
+          )}
 
         {/* Add/Edit Education Form */}
         {(isAddingEducation || editingEducationId) && (
@@ -833,7 +855,7 @@ const BasicInformation = () => {
 
         {/* Add Education Button */}
         {!isAddingEducation && !editingEducationId && (
-          <button 
+          <button
             className="flex items-center text-blue-600 hover:text-blue-700 transition-colors mt-4"
             onClick={handleAddEducation}
           >
@@ -941,8 +963,8 @@ const BasicInformation = () => {
       let currentProfileEntries = [];
       if (profileCategoriesDataShow && profileCategoriesDataShow.length > 0) {
         try {
-          currentProfileEntries = typeof profileCategoriesDataShow[0].meta_value === 'string' 
-            ? JSON.parse(profileCategoriesDataShow[0].meta_value) 
+          currentProfileEntries = typeof profileCategoriesDataShow[0].meta_value === 'string'
+            ? JSON.parse(profileCategoriesDataShow[0].meta_value)
             : profileCategoriesDataShow[0].meta_value || [];
         } catch (error) {
           console.error('Error parsing current profile data:', error);
@@ -958,7 +980,7 @@ const BasicInformation = () => {
           category: selectedCategories[0] || "",
           status: 'public'
         };
-        updatedProfileEntries = currentProfileEntries.map(profile => 
+        updatedProfileEntries = currentProfileEntries.map(profile =>
           profile.id === editingCategoryId ? newCategory : profile
         );
       } else {
@@ -1028,7 +1050,7 @@ const BasicInformation = () => {
 
     const handleDeleteCategory = (data, id) => {
       const updatedProfileEntries = data?.filter(profile => profile.id !== id);
-      
+
       const metas = [
         {
           meta_key: 'PROFILE',
@@ -1051,18 +1073,17 @@ const BasicInformation = () => {
     };
 
     return (
-      <div className="col-span-1 md:col-span-3 bg-white rounded-lg border border-gray-100 p-4 mb-4">
-        <h3 className="text-lg font-semibold mb-4">Profile Categories</h3>
+      <div className="w-full">
 
         {/* Display existing profile entries */}
         {profileCategoriesDataShow && profileCategoriesDataShow.length > 0 && profileCategoriesDataShow.map((profileData, index) => {
-          const profileEntries = typeof profileData.meta_value === 'string' 
-            ? JSON.parse(profileData.meta_value) 
+          const profileEntries = typeof profileData.meta_value === 'string'
+            ? JSON.parse(profileData.meta_value)
             : profileData.meta_value || [];
-          
+
           return Array.isArray(profileEntries) ? profileEntries.map((entry, entryIndex) => {
             const uniqueId = entry.id || `profile_${index}_${entryIndex}_${Date.now()}`;
-            
+
             return (
               <div key={uniqueId} className="mb-3">
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -1073,11 +1094,11 @@ const BasicInformation = () => {
                       </svg>
                       <span className="text-gray-900 font-medium">{entry.category || 'Category'}</span>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
-                      <button 
+                      <button
                         className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 flex items-center justify-center transition-colors"
-                        onClick={() => handleEditCategory({...entry, id: entry.id || uniqueId})}
+                        onClick={() => handleEditCategory({ ...entry, id: entry.id || uniqueId })}
                         title="Edit category"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1102,10 +1123,10 @@ const BasicInformation = () => {
           }) : null;
         })}
 
-        {(!profileCategoriesDataShow || profileCategoriesDataShow.length === 0 || 
+        {(!profileCategoriesDataShow || profileCategoriesDataShow.length === 0 ||
           (profileCategoriesDataShow[0] && (!profileCategoriesDataShow[0].meta_value || JSON.parse(profileCategoriesDataShow[0].meta_value || '[]').length === 0))) && (
-          <div className="text-gray-500 text-sm py-2">No categories added yet</div>
-        )}
+            <div className="text-gray-500 text-sm py-2">No categories added yet</div>
+          )}
 
         {/* Add New Category Form */}
         {isFormVisible && (
@@ -1113,7 +1134,7 @@ const BasicInformation = () => {
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-500">Categories</span>
             </div>
-            
+
             {/* Category Input Field with Multi-select and Suggestions */}
             <div className="border border-gray-200 rounded-lg p-3 bg-white">
               <div className="flex flex-wrap gap-2 items-center">
@@ -1165,9 +1186,9 @@ const BasicInformation = () => {
                 </div>
               </div>
             </div>
-            
+
             <hr className="my-3 border-gray-200" />
-            
+
             {/* Action Buttons */}
             <div className="flex items-center justify-end space-x-2">
               <button
@@ -1178,11 +1199,10 @@ const BasicInformation = () => {
               </button>
               <button
                 onClick={handleSaveCategories}
-                className={`px-3 py-1 rounded-full text-sm ${
-                  (editingCategoryId ? selectedCategories.length === 1 : selectedCategories.length > 0)
-                    ? "bg-blue-500 text-white hover:bg-blue-600" 
+                className={`px-3 py-1 rounded-full text-sm ${(editingCategoryId ? selectedCategories.length === 1 : selectedCategories.length > 0)
+                    ? "bg-blue-500 text-white hover:bg-blue-600"
                     : "bg-gray-200 text-gray-500 cursor-not-allowed"
-                }`}
+                  }`}
                 disabled={!(editingCategoryId ? selectedCategories.length === 1 : selectedCategories.length > 0)}
               >
                 Save
@@ -1193,7 +1213,7 @@ const BasicInformation = () => {
 
         {/* Add Category Button */}
         {!isFormVisible && (
-          <button 
+          <button
             className="flex items-center text-blue-600 hover:text-blue-700 transition-colors mt-4"
             onClick={handleAddCategory}
           >
@@ -1381,477 +1401,171 @@ const BasicInformation = () => {
     { value: "other", label: "Other" }
   ];
 
-  console.log('nationality',nationality)
+  console.log('nationality', nationality)
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h2 className="text-xl font-semibold mb-8">Basic Information</h2>
+    <div className="bg-white rounded-lg shadow-sm p-6 max-w-5xl mx-auto">
+      <div className="mb-8 border-b border-gray-200 pb-4">
+        <h2 className="text-2xl text-gray-700 mb-1">PROFILE</h2>
+        <p className="text-sm text-gray-500">Manage all your settings, preferences and features in one easy place.</p>
+      </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div>
-            <OldInput
-              label="First name"
-              type="text"
-              name="fname"
-              value={fname}
-              onChange={handleInputChange}
-              placeholder="First name"
-              className="w-full"
-            />
-          </div>
+        <Section title="Basic Information" icon={<FaUser />}>
+          <FormRow label="First Name">
+            <OldInput type="text" name="fname" value={fname} onChange={handleInputChange} placeholder="First name" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Middle Name">
+            <OldInput type="text" name="middle_name" value={middle_name} onChange={handleInputChange} placeholder="Middle name" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Last Name">
+            <OldInput type="text" name="last_name" value={last_name} onChange={handleInputChange} placeholder="Last name" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Display Name">
+            <OldInput type="text" name="display_name" value={display_name} onChange={handleInputChange} placeholder="Display name" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="User Name">
+            <OldInput type="text" name="username" value={username} onChange={handleInputChange} placeholder="Username" className="w-full max-w-md" />
+            <p className="text-xs text-gray-400 mt-1">Link: oldclubman.com/{username}</p>
+          </FormRow>
+          <FormRow label="Pronounces Name">
+            <OldInput type="text" name="pronounce_name" value={pronounce_name} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Date of Birth">
+            <OldInput type="date" name="dob" value={dob} onChange={handleInputChange} placeholder="YYYY-MM-DD" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Sex">
+            <OldSelect name="gender" value={gender} onChange={handleInputChange} options={[{ value: 0, label: "Male" }, { value: 1, label: "Female" }, { value: 2, label: "Other" }]} placeholder="Select Gender" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Nationality">
+            <OldSelect name="nationality" value={profileData?.nationality || ""} onChange={handleInputChange} options={countries} placeholder="Select Nationality" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Relationship Status">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <OldSelect name="marital_status" value={profileData?.marital_status || ""} onChange={handleInputChange} options={maritalStatusOptions} placeholder="Select Marital Status" className="w-full max-w-xs" />
+              <div className="flex items-center bg-gray-50 px-3 py-1.5 rounded-md border border-gray-100">
+                <span className="text-xs text-gray-600 mr-3">Looking for partner?</span>
+                <button type="button" onClick={() => dispatch(bindProfileData({ ...profileData, is_spouse_need: !profileData?.is_spouse_need }))} role="switch" aria-checked={profileData?.is_spouse_need ? 'true' : 'false'} className={`relative inline-flex h-5 w-9 items-center rounded-full ${profileData?.is_spouse_need ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${profileData?.is_spouse_need ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </FormRow>
+          <FormRow label="Blood Group" isLast>
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <OldSelect name="blood_group" value={profileData?.blood_group || ""} onChange={handleInputChange} options={bloodGroupOptions} placeholder="Select Blood Group" className="w-full max-w-xs" />
+              <div className="flex items-center bg-gray-50 px-3 py-1.5 rounded-md border border-gray-100">
+                <span className="text-xs text-gray-600 mr-3">Blood donor?</span>
+                <button type="button" onClick={() => dispatch(bindProfileData({ ...profileData, is_blood_donor: !profileData?.is_blood_donor }))} role="switch" aria-checked={profileData?.is_blood_donor ? 'true' : 'false'} className={`relative inline-flex h-5 w-9 items-center rounded-full ${profileData?.is_blood_donor ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${profileData?.is_blood_donor ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </FormRow>
+        </Section>
 
-          <div>
-            <OldInput
-              label="Middle name"
-              type="text"
-              name="middle_name"
-              value={middle_name}
-              onChange={handleInputChange}
-              placeholder="Middle name"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Last name"
-              type="text"
-              name="last_name"
-              value={last_name}
-              onChange={handleInputChange}
-              placeholder="Last name"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Display name"
-              type="text"
-              name="display_name"
-              value={display_name}
-              onChange={handleInputChange}
-              placeholder="Display name"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label={`User name (Link: oldclubman.com/${username})`}
-              type="text"
-              name="username"
-              value={username}
-              onChange={handleInputChange}
-              placeholder="Username"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Pronounces name"
-              type="text"
-              name="pronounce_name"
-              value={pronounce_name}
-              onChange={handleInputChange}
-              className="w-full"
-            />
-          </div>
-
-          <div className="">
-            <OldInput
-              label="Date of Birth"
-              type="date"
-              name="dob"
-              value={dob}
-              onChange={handleInputChange}
-              placeholder="YYYY-MM-DD"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label="Sex"
-              name="gender"
-              value={gender}
-              onChange={handleInputChange}
-              options={[
-                { value: 0, label: "Male" },
-                { value: 1, label: "Female" },
-                { value: 2, label: "Other" },
-              ]}
-              placeholder="Select Gender"
-              className="w-full"
-            />
-          </div>
-
-          {/* nationality */}
-          <div>
-            <OldSelect
-              label="Nationality"
-              name="nationality"
-              value={profileData?.nationality || ""}
-              onChange={handleInputChange}
-              options={countries}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label={
-                <div className="">
-                  <div>
-                    <div className="flex items-center space-x-3">
-                      Relationship Status{" "}
-                      <span className="relative inline-block group">
-                        <span className="ml-1 inline-flex h-5 w-5 bg-gray-100 items-center justify-center rounded-full  text-gray-700 text-xs font-semibold hover:cursor-pointer">
-                          {"?"}
-                        </span>
-                        <div className="pointer-events-none absolute z-10 hidden w-72 -translate-x-1/2 rounded-md bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block left-1/2 top-6">
-                          Your profile will be visible to individuals seeking a
-                          long-term friendship or relationship.
-                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-gray-900"></span>
-                        </div>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => dispatch(bindProfileData({ ...profileData, is_spouse_need: !profileData?.is_spouse_need }))}
-                        role="switch"
-                        aria-checked={profileData?.is_spouse_need ? 'true' : 'false'}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full ${profileData?.is_spouse_need ? 'bg-blue-600' : 'bg-gray-300'}`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${profileData?.is_spouse_need ? 'translate-x-6' : 'translate-x-1'}`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              }
-              name="marital_status"
-              value={profileData?.marital_status || ""}
-              onChange={handleInputChange}
-              options={maritalStatusOptions}
-              placeholder="Select Marital Status"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label={
-                <div className="">
-                  <div>
-                    <div className="flex items-center space-x-3">
-                      Blood Group{" "}
-                      <span className="relative inline-block group">
-                        <span className="ml-1 bg-gray-100 inline-flex h-5 w-5 items-center justify-center rounded-full  text-gray-700 text-xs font-semibold hover:cursor-pointer">
-                          {"?"}
-                        </span>
-                        <div className="pointer-events-none absolute z-10 hidden w-72 -translate-x-1/2 rounded-md bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block left-1/2 top-6">
-                          Human for human — together, we can make a difference.
-                          If you'd like, you can donate your blood to help save
-                          lives. Would you like to register as a blood donor?{" "}
-                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-gray-900"></span>
-                        </div>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => dispatch(bindProfileData({ ...profileData, is_blood_donor: !profileData?.is_blood_donor }))}
-                        role="switch"
-                        aria-checked={profileData?.is_blood_donor ? 'true' : 'false'}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full ${profileData?.is_blood_donor ? 'bg-blue-600' : 'bg-gray-300'}`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${profileData?.is_blood_donor ? 'translate-x-6' : 'translate-x-1'}`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              }
-              name="blood_group"
-              value={profileData?.blood_group || ""}
-              onChange={handleInputChange}
-              options={bloodGroupOptions}
-              placeholder="Select Blood Group"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Current City"
-              type="text"
-              name="current_city"
-              value={profileData?.current_city || ""}
-              onChange={handleInputChange}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="State/Province"
-              type="text"
-              name="current_state"
-              value={profileData?.current_state || ""}
-              onChange={handleInputChange}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label="Country of Residence"
-              name="current_country_id"
-              value={profileData?.current_country_id || ""}
-              onChange={handleInputChange}
-              options={countries}
-              placeholder="Select Country"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Address Line 1"
-              type="text"
-              name="address_line_1"
-              value={address_line_1}
-              onChange={handleInputChange}
-              placeholder="Address Line 1"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Address Line 2"
-              type="text"
-              name="address_line_2"
-              value={address_line_2}
-              onChange={handleInputChange}
-              placeholder="Address Line 2"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Zip Code"
-              type="text"
-              name="zip_code"
-              value={zip_code}
-              onChange={handleInputChange}
-              placeholder="Zip Code"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Email"
-              type="email"
-              name="email"
-              value={email}
-              onChange={handleInputChange}
-              placeholder="Email address"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">Phone</label>
-            <div className="flex gap-2">
+        <Section title="Contact & Location Information" icon={<FaAddressCard />}>
+          <FormRow label="Email Address">
+            <OldInput type="email" name="email" value={email} onChange={handleInputChange} placeholder="Email address" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Phone Number">
+            <div className="flex gap-2 max-w-md">
               <div className="w-1/3">
-                <select
-                  name="contact_no_code"
-                  value={profileData?.contact_no_code || ""}
-                  onChange={handleInputChange}
-                  onFocus={handleCountryCodeFocus}
-                  onClick={handleCountryCodeFocus}
-                  className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none"
-                >
+                <select name="contact_no_code" value={profileData?.contact_no_code || ""} onChange={handleInputChange} onFocus={handleCountryCodeFocus} onClick={handleCountryCodeFocus} className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none">
                   <option value="">{loadingCountryCodes ? "Loading..." : "Code"}</option>
-                  {countryCodes.map((country) => (
-                    <option key={country.id} value={country.value}>
-                      {country.value}
-                    </option>
-                  ))}
+                  {countryCodes.map((country) => <option key={country.id} value={country.value}>{country.value}</option>)}
                 </select>
               </div>
               <div className="flex-1">
-                <input
-                  type="text"
-                  name="contact_no"
-                  value={profileData?.contact_no || ""}
-                  onChange={handleInputChange}
-                  placeholder="1234567890"
-                  className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none"
-                />
+                <input type="text" name="contact_no" value={profileData?.contact_no || ""} onChange={handleInputChange} placeholder="1234567890" className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none" />
               </div>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">Cell</label>
-            <div className="flex gap-2">
+          </FormRow>
+          <FormRow label="Cell Number">
+            <div className="flex gap-2 max-w-md">
               <div className="w-1/3">
-                <select
-                  name="cell_number_code"
-                  value={profileData?.cell_number_code || ""}
-                  onChange={handleInputChange}
-                  onFocus={handleCountryCodeFocus}
-                  onClick={handleCountryCodeFocus}
-                  className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none"
-                >
+                <select name="cell_number_code" value={profileData?.cell_number_code || ""} onChange={handleInputChange} onFocus={handleCountryCodeFocus} onClick={handleCountryCodeFocus} className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none">
                   <option value="">{loadingCountryCodes ? "Loading..." : "Code"}</option>
-                  {countryCodes.map((country) => (
-                    <option key={country.id} value={country.value}>
-                      {country.value}
-                    </option>
-                  ))}
+                  {countryCodes.map((country) => <option key={country.id} value={country.value}>{country.value}</option>)}
                 </select>
               </div>
               <div className="flex-1">
-                <input
-                  type="text"
-                  name="cell_number"
-                  value={profileData?.cell_number || ""}
-                  onChange={handleInputChange}
-                  placeholder="1234567890"
-                  className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none"
-                />
+                <input type="text" name="cell_number" value={profileData?.cell_number || ""} onChange={handleInputChange} placeholder="1234567890" className="w-full border border-slate-200 rounded-md px-[1rem] py-[0.3rem] focus:border-[#155DFC] focus:outline-none" />
               </div>
             </div>
-          </div>
+          </FormRow>
+          <FormRow label="Current City">
+            <OldInput type="text" name="current_city" value={profileData?.current_city || ""} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="State / Province">
+            <OldInput type="text" name="current_state" value={profileData?.current_state || ""} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Country of Residence">
+            <OldSelect name="current_country_id" value={profileData?.current_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Address Line 1">
+            <OldInput type="text" name="address_line_1" value={address_line_1} onChange={handleInputChange} placeholder="Address Line 1" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Address Line 2">
+            <OldInput type="text" name="address_line_2" value={address_line_2} onChange={handleInputChange} placeholder="Address Line 2" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Zip Code" isLast>
+            <OldInput type="text" name="zip_code" value={zip_code} onChange={handleInputChange} placeholder="Zip Code" className="w-full max-w-md" />
+          </FormRow>
+        </Section>
 
-          <div>
-            <OldSelect
-              label="Identity"
-              name="id_no_type"
-              value={id_no_type}
-              onChange={handleInputChange}
-              options={idTypeOptions}
-              placeholder="Select ID Type"
-              className="w-full"
-            />
-          </div>
+        <Section title="Identity Information" icon={<FaIdCard />}>
+          <FormRow label="Identity Type">
+            <OldSelect name="id_no_type" value={id_no_type} onChange={handleInputChange} options={idTypeOptions} placeholder="Select ID Type" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Issuing Authority">
+            <OldSelect name="issuing_authority_country_id" value={profileData?.issuing_authority_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="ID Number" isLast>
+            <OldInput type="text" name="id_no" value={id_no} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+        </Section>
 
-          <div>
-            <OldSelect
-              label="Issuing Authority"
-              name="issuing_authority_country_id"
-              value={profileData?.issuing_authority_country_id || ""}
-              onChange={handleInputChange}
-              options={countries}
-              placeholder="Select Country"
-              className="w-full"
-            />
-          </div>
+        <Section title="Professional & Other Details" icon={<FaBriefcase />}>
+          <FormRow label="Employment Field">
+            <OldSelect name="employment_name" value={profileData?.employment_name || ""} onChange={handleInputChange} options={professionOptions} placeholder="Select Profession" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Languages Spoken">
+            <OldSelect name="language_name" value={profileData?.language_name || ""} onChange={handleInputChange} options={languageOptions} placeholder="Select Language" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Places Lived">
+            <OldSelect name="from_country_id" value={profileData?.from_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Website">
+            <OldInput type="text" name="website" value={website} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Member (Particular Group)">
+            <OldInput type="text" name="member_of_group" value={member_of_group} onChange={handleInputChange} className="w-full max-w-md" />
+          </FormRow>
+          <FormRow label="Work Experience">
+            <div className="-mx-4 -my-4 sm:-mx-0 sm:-my-0">
+              <WorkSection />
+            </div>
+          </FormRow>
+          <FormRow label="Education">
+            <div className="-mx-4 -my-4 sm:-mx-0 sm:-my-0">
+              <EducationSection />
+            </div>
+          </FormRow>
+          <FormRow label="Profile Categories" isLast>
+            <div className="-mx-4 -my-4 sm:-mx-0 sm:-my-0">
+              <ProfileCategoriesSection />
+            </div>
+          </FormRow>
+        </Section>
 
-          <div>
-            <OldInput
-              label="ID Number"
-              type="text"
-              name="id_no"
-              value={id_no}
-              onChange={handleInputChange}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-          {/* Work Section */}
-          <WorkSection />
-
-          {/* Education Section */}
-          <EducationSection />
-
-          {/* Profile Categories Section */}
-          <ProfileCategoriesSection />
-
-          <div>
-            <OldSelect
-              label="Employment"
-              name="employment_name"
-              value={profileData?.employment_name || ""}
-              onChange={handleInputChange}
-              options={professionOptions}
-              placeholder="Select Profession"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label="Languages"
-              name="language_name"
-              value={profileData?.language_name || ""}
-              onChange={handleInputChange}
-              options={languageOptions}
-              placeholder="Select Language"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldSelect
-              label="Places lived"
-              name="from_country_id"
-              value={profileData?.from_country_id || ""}
-              onChange={handleInputChange}
-              options={countries}
-              placeholder="Select Country"
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Website"
-              type="text"
-              name="website"
-              value={website}
-              onChange={handleInputChange}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <OldInput
-              label="Member (Perticuler Group)"
-              type="text"
-              name="member_of_group"
-              value={member_of_group}
-              onChange={handleInputChange}
-              placeholder=""
-              className="w-full"
-            />
-          </div>
-
-        </div>
-
-        <div className="mt-8 flex items-center gap-4">
-          <button
-            type="submit"
-            className="bg-blue-500 cursor-pointer text-white px-8 py-3 rounded-md hover:bg-blue-600 transition font-semibold"
-            disabled={loading}
-          >
+        <div className="mt-8 flex flex-col sm:flex-row justify-between items-center sm:items-center gap-4 bg-gray-50 border border-gray-200 p-4 rounded-b-sm">
+          <p className="text-sm text-gray-500 text-center sm:text-left">
+            This will save your profile information. Work, Education, and Categories are saved immediately.
+          </p>
+          <button type="submit" className="bg-gray-800 cursor-pointer text-white px-8 py-2.5 rounded-sm hover:bg-gray-900 transition font-medium min-w-[200px]" disabled={loading}>
             {loading ? "Saving..." : "Save Changes"}
           </button>
-          <p className="text-sm text-gray-600">
-            This will save your profile information. Work, Education, and Categories are saved immediately when added.
-          </p>
         </div>
       </form>
     </div>
