@@ -1732,6 +1732,9 @@ const PostList = ({ postsData }) => {
     // Sanitize HTML to only allow safe formatting tags
     cleanedText = sanitizeHTML(cleanedText);
 
+    // Convert newlines to <br> for proper line break rendering
+    cleanedText = cleanedText.replace(/\n/g, '<br>');
+
     // Handle the clean [Name](id) or [Name](username) format
     // Updated to support both numeric IDs, alphanumeric usernames, and UUIDs with hyphens
     const fullFormatRegex = /\[(.+?)\]\(([a-zA-Z0-9_-]+)\)/g;
@@ -3507,7 +3510,7 @@ const PostList = ({ postsData }) => {
                     {renderContentWithMentions(item?.message)}
                   </div>
                   {/* See more / See less button */}
-                  {item?.message && (item.message.length > 150 || (item.message.match(/\n/g) || []).length >= 3) && (
+                  {item?.message && (item.message.length > 100 || (item.message.match(/\n/g) || []).length >= 2) && (
                     <button
                       className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
                       onClick={() => togglePostExpansion(item.id)}
@@ -3565,7 +3568,7 @@ const PostList = ({ postsData }) => {
                         >
                           {renderContentWithMentions(item?.shared_post?.message)}
                         </div>
-                        {item?.shared_post?.message && (item.shared_post.message.length > 150 || (item.shared_post.message.match(/\n/g) || []).length >= 3) && (
+                        {item?.shared_post?.message && (item.shared_post.message.length > 100 || (item.shared_post.message.match(/\n/g) || []).length >= 2) && (
                           <button
                             className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
                             onClick={() => togglePostExpansion(`shared_${item.id}`)}
