@@ -1585,17 +1585,11 @@ const PostList = ({ postsData }) => {
       return ''; // Remove disallowed tags
     });
 
-    // Clean up excessive line breaks and empty paragraphs
+    // Clean up leading/trailing line breaks only (preserve intentional blank lines in between)
     sanitized = sanitized
-      // Replace multiple consecutive empty paragraphs with <br> tags with single one
-      .replace(/(<p><br><\/p>){2,}/gi, '<p><br></p>')
-      // Replace multiple consecutive <br> tags with single <br>
-      .replace(/(<br\s*\/?>){2,}/gi, '<br>')
       // Remove <br> tags at the beginning and end
       .replace(/^(<br\s*\/?>)+/gi, '')
-      .replace(/(<br\s*\/?>)+$/gi, '')
-      // Clean up multiple consecutive empty paragraphs
-      .replace(/(<p><\/p>){2,}/gi, '<p></p>');
+      .replace(/(<br\s*\/?>)+$/gi, '');
 
     return sanitized;
   }, []);
@@ -1731,9 +1725,6 @@ const PostList = ({ postsData }) => {
 
     // Sanitize HTML to only allow safe formatting tags
     cleanedText = sanitizeHTML(cleanedText);
-
-    // Convert newlines to <br> for proper line break rendering
-    cleanedText = cleanedText.replace(/\n/g, '<br>');
 
     // Handle the clean [Name](id) or [Name](username) format
     // Updated to support both numeric IDs, alphanumeric usernames, and UUIDs with hyphens
@@ -3510,7 +3501,7 @@ const PostList = ({ postsData }) => {
                     {renderContentWithMentions(item?.message)}
                   </div>
                   {/* See more / See less button */}
-                  {item?.message && (item.message.length > 100 || (item.message.match(/\n/g) || []).length >= 2) && (
+                  {item?.message && (item.message.length > 100 || (item.message.match(/<br\s*\/?>/gi) || []).length + (item.message.match(/<\/p>/gi) || []).length + (item.message.match(/\n/g) || []).length >= 2) && (
                     <button
                       className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
                       onClick={() => togglePostExpansion(item.id)}
@@ -3568,7 +3559,7 @@ const PostList = ({ postsData }) => {
                         >
                           {renderContentWithMentions(item?.shared_post?.message)}
                         </div>
-                        {item?.shared_post?.message && (item.shared_post.message.length > 100 || (item.shared_post.message.match(/\n/g) || []).length >= 2) && (
+                        {item?.shared_post?.message && (item.shared_post.message.length > 100 || (item.shared_post.message.match(/<br\s*\/?>/gi) || []).length + (item.shared_post.message.match(/<\/p>/gi) || []).length + (item.shared_post.message.match(/\n/g) || []).length >= 2) && (
                           <button
                             className="text-gray-500 hover:text-gray-700 hover:underline text-sm mt-1 cursor-pointer"
                             onClick={() => togglePostExpansion(`shared_${item.id}`)}
