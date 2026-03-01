@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   FaSearch, FaUserFriends, FaSmile, FaPaperclip, FaPaperPlane,
@@ -25,7 +25,7 @@ import { ClientSegmentRoot } from 'next/dist/client/components/client-segment';
 import moment from 'moment';
 import ChatPostPreview from '@/components/common/ChatPostPreview';
 
-const MessagingContent = () => {
+const MessagingContentInner = () => {
   const searchParams = useSearchParams();
   const { allChat, prevChat, convarsationData, unreadCounts } = useSelector(({ chat }) => chat);
   const { userFollowers, profile, userProfileData, myFollowers } = useSelector(({ settings }) => settings);
@@ -1701,6 +1701,14 @@ const MessagingContent = () => {
         </div>
       )}
     </>
+  );
+};
+
+const MessagingContent = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MessagingContentInner />
+    </Suspense>
   );
 };
 

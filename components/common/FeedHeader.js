@@ -1,5 +1,5 @@
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import {
   FaEllipsisH,
   FaBookmark,
@@ -47,7 +47,7 @@ const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
   return process.env.NEXT_PUBLIC_FILE_PATH + imagePath;
 };
 
-function FeedHeader({
+function FeedHeaderInner({
   userProfile = false,
   friendsTab = false,
   showMsgBtn = false,
@@ -1417,6 +1417,14 @@ function FeedHeader({
         </div>
       )}
     </div>
+  );
+}
+
+function FeedHeader(props) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FeedHeaderInner {...props} />
+    </Suspense>
   );
 }
 
