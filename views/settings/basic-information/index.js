@@ -88,7 +88,11 @@ const BasicInformation = () => {
   const [countryCodes, setCountryCodes] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
+  const [currentCities, setCurrentCities] = useState([]);
   const [loadingCountryCodes, setLoadingCountryCodes] = useState(false);
+
+  // Visibility state - matches EditDetails.js pattern
+  const [localVisibility, setLocalVisibility] = useState({});
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -102,6 +106,22 @@ const BasicInformation = () => {
       dispatch(getUserProfileByUsername(profile.client.username));
     }
   }, [profile?.client?.username, dispatch]);
+
+  // Pre-fetch states and cities when profile data loads with existing location IDs
+  useEffect(() => {
+    if (profileData?.current_country_id) {
+      fetchStates(profileData.current_country_id, "current");
+    }
+    if (profileData?.current_state_id) {
+      fetchCurrentCities(profileData.current_state_id);
+    }
+    if (profileData?.from_country_id) {
+      fetchStates(profileData.from_country_id, "from");
+    }
+    if (profileData?.from_state_id) {
+      fetchCities(profileData.from_state_id);
+    }
+  }, [profile]);
 
   const fetchCountries = async () => {
     try {
@@ -202,14 +222,100 @@ const BasicInformation = () => {
     }
   };
 
+  const fetchCurrentCities = async (stateId) => {
+    try {
+      const response = await api.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/location/city?state_id=${stateId}`
+      );
+      if (response.data && response.data.data) {
+        const cityOptions = response.data.data.map((city) => ({
+          value: city.id.toString(),
+          label: city.name,
+        }));
+        setCurrentCities(cityOptions);
+      }
+    } catch (error) {
+      errorResponse(error);
+    }
+  };
+
+  // Helper to check if a field is public - matches EditDetails.js OverViewBlock pattern
+  const isFieldPublic = (field) => {
+    // Use local visibility for immediate updates, then profile data
+    if (localVisibility[field] !== undefined) {
+      return localVisibility[field] === 'public';
+    }
+    const vis = profile?.client?.profile_visibility;
+    if (!vis) return true; // default to public
+    if (vis[field] === undefined) return true; // undefined = public
+    return vis[field] === 'public';
+  };
+
+  // Handle privacy toggle - exact same pattern as EditDetails.js handlePrivacyToggle
+  const handlePrivacyToggle = (field) => {
+    // Get current profile visibility data
+    let currentVisibility = {};
+    if (profile?.client?.profile_visibility) {
+      try {
+        currentVisibility = typeof profile.client.profile_visibility === 'string'
+          ? JSON.parse(profile.client.profile_visibility)
+          : profile.client.profile_visibility;
+      } catch (error) {
+        console.error('Error parsing profile visibility:', error);
+        currentVisibility = {};
+      }
+    }
+
+    // Toggle the specific field (treat undefined as 'public')
+    const currentValue = currentVisibility[field] ?? 'public';
+    const newVisibility = {
+      ...currentVisibility,
+      [field]: currentValue === 'public' ? 'private' : 'public'
+    };
+
+    // Update local visibility for immediate UI update
+    setLocalVisibility(prev => ({
+      ...prev,
+      [field]: newVisibility[field]
+    }));
+
+    // Send to backend
+    dispatch(storeBsicInformation({
+      ...profileData,
+      metas: JSON.stringify(profileData?.metas),
+      profile_visibility: JSON.stringify(newVisibility)
+    }))
+      .then(() => {
+        dispatch(getMyProfile());
+        toast.success("Updated");
+      });
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     const inputValue = type === 'checkbox' ? checked : value;
     dispatch(bindProfileData({ ...profileData, [name]: inputValue }));
-
     // Handle dependent dropdowns
     if (name === "current_country_id") {
       fetchStates(value, "current");
+      setCurrentCities([]);
+      dispatch(
+        bindProfileData({
+          ...profileData,
+          current_country_id: value,
+          current_state_id: "",
+          current_city_id: "",
+        })
+      );
+    } else if (name === "current_state_id") {
+      fetchCurrentCities(value);
+      dispatch(
+        bindProfileData({
+          ...profileData,
+          current_state_id: value,
+          current_city_id: "",
+        })
+      );
     } else if (name === "from_country_id") {
       fetchStates(value, "from");
       dispatch(
@@ -225,6 +331,7 @@ const BasicInformation = () => {
       dispatch(
         bindProfileData({
           ...profileData,
+          from_state_id: value,
           from_city_id: "",
         })
       );
@@ -1200,8 +1307,8 @@ const BasicInformation = () => {
               <button
                 onClick={handleSaveCategories}
                 className={`px-3 py-1 rounded-full text-sm ${(editingCategoryId ? selectedCategories.length === 1 : selectedCategories.length > 0)
-                    ? "bg-blue-500 text-white hover:bg-blue-600"
-                    : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  ? "bg-blue-500 text-white hover:bg-blue-600"
+                  : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   }`}
                 disabled={!(editingCategoryId ? selectedCategories.length === 1 : selectedCategories.length > 0)}
               >
@@ -1494,14 +1601,47 @@ const BasicInformation = () => {
               </div>
             </div>
           </FormRow>
-          <FormRow label="Current City">
-            <OldInput type="text" name="current_city" value={profileData?.current_city || ""} onChange={handleInputChange} className="w-full max-w-md" />
+          <FormRow label="Country of Residence">
+            <div className="flex items-center gap-3">
+              <OldSelect name="current_country_id" value={profileData?.current_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('current_country')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('current_country') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('current_country') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
           </FormRow>
           <FormRow label="State / Province">
-            <OldInput type="text" name="current_state" value={profileData?.current_state || ""} onChange={handleInputChange} className="w-full max-w-md" />
+            <div className="flex items-center gap-3">
+              <OldSelect name="current_state_id" value={profileData?.current_state_id || ""} onChange={handleInputChange} options={states?.current || []} placeholder="Select State" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('current_state')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('current_state') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('current_state') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
           </FormRow>
-          <FormRow label="Country of Residence">
-            <OldSelect name="current_country_id" value={profileData?.current_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+          <FormRow label="Current City">
+            <div className="flex items-center gap-3">
+              <OldSelect name="current_city_id" value={profileData?.current_city_id || ""} onChange={handleInputChange} options={currentCities} placeholder="Select City" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('city')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('city') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('city') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
           </FormRow>
           <FormRow label="Address Line 1">
             <OldInput type="text" name="address_line_1" value={address_line_1} onChange={handleInputChange} placeholder="Address Line 1" className="w-full max-w-md" />
@@ -1534,8 +1674,47 @@ const BasicInformation = () => {
             <OldSelect name="language_name" value={profileData?.language_name || ""} onChange={handleInputChange} options={languageOptions} placeholder="Select Language" className="w-full max-w-md" />
           </FormRow>
           <FormRow label="Places Lived">
-            <OldSelect name="from_country_id" value={profileData?.from_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+            <div className="flex items-center gap-3">
+              <OldSelect name="from_country_id" value={profileData?.from_country_id || ""} onChange={handleInputChange} options={countries} placeholder="Select Country" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('location')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('location') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('location') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
           </FormRow>
+          {/* <FormRow label="From State">
+            <div className="flex items-center gap-3">
+              <OldSelect name="from_state_id" value={profileData?.from_state_id || ""} onChange={handleInputChange} options={states?.from || []} placeholder="Select State" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('from_state')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('from_state') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('from_state') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </FormRow>
+          <FormRow label="From City">
+            <div className="flex items-center gap-3">
+              <OldSelect name="from_city_id" value={profileData?.from_city_id || ""} onChange={handleInputChange} options={cities} placeholder="Select City" className="w-full max-w-md" />
+              <div className="flex items-center mr-4">
+                <button
+                  type="button"
+                  onClick={() => handlePrivacyToggle('from_city')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isFieldPublic('from_city') ? 'bg-blue-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFieldPublic('from_city') ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </FormRow> */}
           <FormRow label="Website">
             <OldInput type="text" name="website" value={website} onChange={handleInputChange} className="w-full max-w-md" />
           </FormRow>

@@ -12,6 +12,7 @@ import {
   FaUsers,
   FaCog,
   FaEye,
+  FaPen,
 } from "react-icons/fa";
 import { IoMdMore } from "react-icons/io";
 import toast from "react-hot-toast";
@@ -77,10 +78,38 @@ function FeedHeaderInner({
   const [coverImagePreview, setCoverImagePreview] = useState(null);
   const [coverImageLoading, setCoverImageLoading] = useState(false);
   const coverImageRef = React.useRef(null);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nickname, setNickname] = useState('');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
 
   useEffect(() => {
     dispatch(getMyProfile());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (data?.client?.nick_name) {
+      setNickname(data.client.nick_name);
+    }
+  }, [data?.client?.nick_name]);
+
+  const handleSaveNickname = async () => {
+    if (!nickname.trim()) {
+      toast.error('Nickname cannot be empty');
+      return;
+    }
+    setNicknameSaving(true);
+    try {
+      await api.post('/client/nickname', { nickname: nickname, target_id: data?.client?.id });
+      toast.success('Nickname saved successfully');
+      dispatch(getMyProfile());
+      setIsEditingNickname(false);
+    } catch (error) {
+      console.error('Error saving nickname:', error);
+      toast.error(error?.response?.data?.message || 'Failed to save nickname');
+    } finally {
+      setNicknameSaving(false);
+    }
+  };
 
   // Extract dominant colors from cover image
   const extractColorsFromImage = (imgElement) => {
@@ -1016,13 +1045,49 @@ function FeedHeaderInner({
 
               {/* Profile Info */}
               <div className="data-info mb-2">
-                <Link href={`/${data?.client?.username}`}>
-                  <h2 className="text-xl font-bold hover:underline">
-                    {data?.client
-                      ? data?.client?.display_name || data?.client?.fname + " " + data?.client?.last_name
-                      : "Loading..."}
-                  </h2>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/${data?.client?.username}`}>
+                    <h2 className="text-xl font-bold hover:underline">
+                      {data?.client
+                        ? data?.client?.display_name || data?.client?.fname + " " + data?.client?.last_name
+                        : "Loading..."}
+                    </h2>
+                  </Link>
+                  {data?.client && (
+                    <button
+                      onClick={() => setIsEditingNickname(!isEditingNickname)}
+                      className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
+                      title="Edit nickname"
+                    >
+                      <FaPen className="text-xs" />
+                    </button>
+                  )}
+                </div>
+                {isEditingNickname && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="Enter nickname"
+                      className="border border-gray-300 rounded px-2 py-1 text-sm w-40 focus:outline-none focus:border-blue-500"
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveNickname(); }}
+                    />
+                    <button
+                      onClick={handleSaveNickname}
+                      disabled={nicknameSaving}
+                      className="bg-blue-500 text-white text-xs px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                    >
+                      {nicknameSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setIsEditingNickname(false); setNickname(data?.client?.nick_name || ''); }}
+                      className="text-gray-500 text-xs px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
 
                 <p className="text-gray-600 text-sm">
                   <Link

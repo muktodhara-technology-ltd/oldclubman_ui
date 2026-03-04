@@ -50,7 +50,7 @@ import { CiEdit, CiUnlock } from "react-icons/ci";
 import { MdOutlineDeleteOutline } from "react-icons/md";
 import { TbMessageReport } from "react-icons/tb";
 import { useParams, useRouter } from "next/navigation";
-import { getMyProfile, getUserProfile, getUserProfileByUsername, getAllFollowers, followTo, unFollowTo } from "@/views/settings/store";
+import { getMyProfile, getUserProfile, getUserProfileByUsername, getAllFollowers, followTo, unFollowTo, storeBsicInformation } from "@/views/settings/store";
 import { sendMessage, startConversation } from "@/views/message/store";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -139,6 +139,7 @@ const PostList = ({ postsData }) => {
   const [showMessengerSelect, setShowMessengerSelect] = useState(false);
   const [selectedShareUsers, setSelectedShareUsers] = useState(new Set());
   const [batchShareLoading, setBatchShareLoading] = useState(false);
+  const [localLocationVisibilities, setLocalLocationVisibilities] = useState({});
   const [shareSearchQuery, setShareSearchQuery] = useState("");
   const [shareSearchResults, setShareSearchResults] = useState([]);
   const isSharingRef = useRef(false);
@@ -3346,6 +3347,7 @@ const PostList = ({ postsData }) => {
                     <Link href={`/${item?.client?.username}`}>
                       <h4 className="font-medium cursor-pointer hover:underline">
                         {item?.client?.display_name || item?.client?.fname + " " + item?.client?.last_name}
+                        {item?.client?.custom_nickname ? ` (${item.client.custom_nickname})` : ""}
                       </h4>
                     </Link>
                     {item?.shared_post && (
@@ -3408,14 +3410,82 @@ const PostList = ({ postsData }) => {
                       return null;
                     })()}
                   </div>
-                  <p className="text-gray-500 text-sm">
-                    {item?.client?.fromcountry?.name ? item?.client?.fromcountry?.name : 'This Account Location Not Set Yet.'}{" "}
-                    {item?.privacy_mode === "public" ? (
-                      <FaGlobe className="inline ml-1" />
-                    ) : (
-                      <FaLock className="inline ml-1" />
-                    )}
-                  </p>
+                  {(() => {
+                    const isOwnPost = profile?.client?.id === item?.client?.id;
+                    let isPublic = true; // default public
+                    if (localLocationVisibilities[item.id] !== undefined) {
+                      isPublic = localLocationVisibilities[item.id];
+                    } else {
+                      let visStr = item?.client?.profile_visibility;
+                      let visObj = {};
+                      if (typeof visStr === 'string') {
+                        try { visObj = JSON.parse(visStr); } catch (e) { visObj = {}; }
+                      } else if (visStr && typeof visStr === 'object') {
+                        visObj = visStr;
+                      }
+                      isPublic = visObj.location !== 'private';
+                    }
+
+                    if (!isOwnPost && !isPublic) return null;
+
+                    const handleToggleLocationPrivacy = async () => {
+                      if (!isOwnPost) return;
+                      // Determine current auth user's profile metadata needed for storeBsicInformation
+                      const currentProfileData = profile?.client;
+                      if (!currentProfileData) return;
+
+                      // Instant local UI update
+                      const newIsPublic = !isPublic;
+                      setLocalLocationVisibilities(prev => ({ ...prev, [item.id]: newIsPublic }));
+
+                      // Re-parse vis for the payload
+                      let baseVisStr = currentProfileData.profile_visibility;
+                      let baseVisObj = {};
+                      if (typeof baseVisStr === 'string') {
+                        try { baseVisObj = JSON.parse(baseVisStr); } catch (e) { baseVisObj = {}; }
+                      } else if (baseVisStr && typeof baseVisStr === 'object') {
+                        baseVisObj = baseVisStr;
+                      }
+
+                      const newVis = { ...baseVisObj, location: newIsPublic ? 'public' : 'private' };
+
+                      // Using the same format as basic-information/index.js
+                      const payload = {
+                        ...currentProfileData,
+                        metas: JSON.stringify(currentProfileData?.metas || []),
+                        profile_visibility: JSON.stringify(newVis)
+                      };
+
+                      try {
+                        await dispatch(storeBsicInformation(payload)).unwrap();
+                        dispatch(getMyProfile());
+                        toast.success(`Location is now ${newIsPublic ? 'Public' : 'Private'}`);
+                      } catch (err) {
+                        toast.error("Failed to update privacy");
+                        // Revert local state on error
+                        setLocalLocationVisibilities(prev => ({ ...prev, [item.id]: isPublic }));
+                      }
+                    };
+
+                    return (
+                      <p className="text-gray-500 text-sm flex items-center gap-1">
+                        {item?.client?.fromcountry?.name ? item?.client?.fromcountry?.name : 'This Account Location Not Set Yet.'}
+                        {isOwnPost ? (
+                          <button
+                            onClick={handleToggleLocationPrivacy}
+                            className="ml-1 cursor-pointer hover:text-blue-600 transition-colors tooltip"
+                            title={`Click to make location ${isPublic ? 'Private' : 'Public'}`}
+                          >
+                            {isPublic ? <FaGlobe title="Public" /> : <FaLock title="Private" />}
+                          </button>
+                        ) : (
+                          <span className="ml-1">
+                            {isPublic ? <FaGlobe title="Public" /> : <FaLock title="Private" />}
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="relative">

@@ -29,7 +29,7 @@ import { bindProfileSettingData, getMyProfile, getUserProfile, getUserProfileByU
 import moment from "moment";
 import CreatePostBox from "@/components/common/CreatePostBox";
 import PostList from "@/components/common/PostList";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { CiHeart, CiLocationOn } from "react-icons/ci";
 import FeedLayout from "@/components/common/FeedLayout";
 import EditDetails from "../about/EditDetails";
@@ -40,8 +40,10 @@ const UserProfile = () => {
   const { isPostModalOpen } = useSelector(({ gathering }) => gathering);
   const dispatch = useDispatch();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const isPublicView = searchParams.get("viewas") === "public";
 
-  const isMyProfile = params?.username === profileData?.username || params?.username === profile?.client?.username;
+  const isMyProfile = (params?.username === profileData?.username || params?.username === profile?.client?.username) && !isPublicView;
 
   // State for edit bio modal
   const [isEditBioOpen, setIsEditBioOpen] = useState(false);
@@ -217,8 +219,8 @@ const UserProfile = () => {
                           }}
                           disabled={!bioText.trim()}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${bioText.trim()
-                              ? 'bg-blue-500 text-white hover:bg-blue-600'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             }`}
                         >
                           Save
