@@ -1051,6 +1051,7 @@ function FeedHeaderInner({
                       {data?.client
                         ? data?.client?.display_name || data?.client?.fname + " " + data?.client?.last_name
                         : "Loading..."}
+                      {data?.client?.custom_nickname && `(${data?.client?.custom_nickname})`}
                     </h2>
                   </Link>
                   {data?.client && (
