@@ -13,6 +13,7 @@ import {
   FaCog,
   FaEye,
   FaPen,
+  FaCheckCircle,
 } from "react-icons/fa";
 import { IoMdMore } from "react-icons/io";
 import toast from "react-hot-toast";
@@ -1053,7 +1054,11 @@ function FeedHeaderInner({
                         : "Loading..."}
                       {data?.client?.custom_nickname && `(${data?.client?.custom_nickname})`}
                     </h2>
+
                   </Link>
+                  {data?.client?.is_verified && (
+                    <FaCheckCircle className="text-blue-500 ml-1 mt-1" />
+                  )}
                   {data?.client && (
                     <button
                       onClick={() => setIsEditingNickname(!isEditingNickname)}

@@ -17,7 +17,8 @@ import {
   FaRegSmile,
   FaLinkedin,
   FaFacebookF,
-  FaSearch
+  FaSearch,
+  FaCheckCircle
 } from "react-icons/fa";
 import { SlLike } from "react-icons/sl";
 import { IoIosShareAlt, IoMdShareAlt, IoLogoWhatsapp } from "react-icons/io";
@@ -3350,6 +3351,9 @@ const PostList = ({ postsData }) => {
                         {item?.client?.custom_nickname ? ` (${item.client.custom_nickname})` : ""}
                       </h4>
                     </Link>
+                    {item?.client?.is_verified && (
+                      <FaCheckCircle className="text-blue-500" />
+                    )}
                     {item?.shared_post && (
                       <>
                         <span className="text-gray-500 hidden sm:inline">•</span>
