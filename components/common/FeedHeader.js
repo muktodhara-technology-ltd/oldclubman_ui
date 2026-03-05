@@ -1055,7 +1055,7 @@ function FeedHeaderInner({
                       {data?.client?.is_verified && (
                         <FaCheckCircle className="text-blue-500 ml-1 mt-1" />
                       )}
-                      {!data?.client?.custom_nickname && data?.client && (
+                      {!data?.client?.custom_nickname && data?.client && !isMyProfile && (
                         <button
                           onClick={() => setIsEditingNickname(!isEditingNickname)}
                           className="ml-2 mt-1 text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
@@ -1066,7 +1066,7 @@ function FeedHeaderInner({
                       )}
                     </h2>
                     {data?.client?.custom_nickname && `(${data?.client?.custom_nickname})`}
-                    {data?.client?.custom_nickname && data?.client && (
+                    {data?.client?.custom_nickname && data?.client && !isMyProfile && (
                       <button
                         onClick={() => setIsEditingNickname(!isEditingNickname)}
                         className="ml-2 mt-1 text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
