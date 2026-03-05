@@ -6,6 +6,7 @@ import { getMyProfile } from '@/views/settings/store';
 import { getWalletBalance } from '@/views/wallet/store';
 import Weather from './Weather';
 import { QRCodeSVG } from 'qrcode.react';
+import { FaCheckCircle } from 'react-icons/fa';
 
 // Helper function to get client image URL without duplication
 const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
@@ -36,8 +37,11 @@ const Intro = () => {
               alt="Profile" className="w-full h-full object-cover" />
           </div>
 
-          <h2 className="text-xl font-bold mb-5">
+          <h2 className="flex items-center text-xl font-bold mb-5">
             {profile?.client ? profile?.client?.fname + " " + profile?.client?.last_name : "Loading..."}
+            {profile?.client?.is_verified && (
+              <FaCheckCircle className="text-blue-500 ml-1 mt-1" />
+            )}
           </h2>
 
           <div className="flex justify-between items-center w-full px-8 border-b border-b-gray-100 pb-5">
