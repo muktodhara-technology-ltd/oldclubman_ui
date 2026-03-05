@@ -2,6 +2,7 @@ import { getFollowSuggestions, followTo, unFollowTo } from "@/views/settings/sto
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { FaCheckCircle } from "react-icons/fa";
 
 // Helper function to get client image URL without duplication
 const getClientImageUrl = (imagePath, fallback = "/common-avator.jpg") => {
@@ -84,6 +85,9 @@ const FollowSuggestion = () => {
                         {user?.fname + " " + user?.last_name || "Unknown User"}
                       </p>
                     </Link>
+                    {user?.is_verified && (
+                      <FaCheckCircle className="text-blue-500 text-xs" />
+                    )}
                     {user?.email && (
                       <p className="text-xs text-gray-500 truncate">
                         @{user.email.split('@')[0]}

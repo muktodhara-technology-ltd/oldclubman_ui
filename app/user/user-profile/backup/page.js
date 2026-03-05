@@ -1,14 +1,16 @@
 import CommonLayout from '@/components/common/CommonLayout'
 import UserProfile from '@/views/user-profile/UserProfile'
-import React from 'react'
+import React, { Suspense } from 'react'
 
 const Page = () => {
   return (
     <CommonLayout>
-    <div className="">
-     <UserProfile />
-   </div>
-  </CommonLayout>
+      <div className="">
+        <Suspense fallback={<div>Loading...</div>}>
+          <UserProfile />
+        </Suspense>
+      </div>
+    </CommonLayout>
   )
 }
 

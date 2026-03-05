@@ -2046,10 +2046,13 @@ const PostList = ({ postsData }) => {
 
         <div className="flex flex-col w-full">
           <div className="bg-gray-50 w-full p-2 rounded-md flex flex-col">
-            <span className="font-medium text-xs">
+            <span className="font-medium text-xs flex items-center flex-wrap">
               <Link href={`/${reply?.username}`} className="cursor-pointer hover:underline">
                 {`${reply?.client_comment?.fname || ""} ${reply?.client_comment?.last_name || ""}`.trim() || reply?.user}
               </Link>
+              {reply?.client_comment?.is_verified && (
+                <FaCheckCircle className="text-blue-500 ml-1 text-[10px]" />
+              )}
               <span className="text-gray-400 ml-1">
                 {reply?.created_at ? formatCompactTime(reply.created_at) : "0s"}
               </span>
@@ -3600,9 +3603,14 @@ const PostList = ({ postsData }) => {
                         />
                       </div>
                       <div className="flex flex-col">
-                        <Link href={`/${item?.shared_post?.client?.username}`} className="font-semibold text-sm hover:underline text-gray-900">
-                          {item?.shared_post?.client?.display_name || `${item?.shared_post?.client?.fname} ${item?.shared_post?.client?.last_name}`}
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          <Link href={`/${item?.shared_post?.client?.username}`} className="font-semibold text-sm hover:underline text-gray-900">
+                            {item?.shared_post?.client?.display_name || `${item?.shared_post?.client?.fname} ${item?.shared_post?.client?.last_name}`}
+                          </Link>
+                          {item?.shared_post?.client?.is_verified && (
+                            <FaCheckCircle className="text-blue-500 text-xs" />
+                          )}
+                        </div>
                         <span className="text-xs text-gray-500">
                           {formatCompactTime(item.shared_post.created_at)}
                         </span>

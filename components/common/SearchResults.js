@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { FaMapMarkerAlt, FaHeart, FaGraduationCap, FaUsers, FaTint } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaHeart, FaGraduationCap, FaUsers, FaTint, FaCheckCircle } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import { followTo, unFollowTo } from '@/views/settings/store';
 import { setSearchResults, removeQuery } from '@/views/search/store';
@@ -114,6 +114,9 @@ const SearchResults = () => {
                       {(result.fname || '') + (result.middle_name ? ' ' + result.middle_name : '') + (result.last_name ? ' ' + result.last_name : '')}
                     </div>
                   </Link>
+                  {result?.is_verified && (
+                    <FaCheckCircle className="text-blue-500 text-sm" />
+                  )}
 
                   <div className="text-sm text-gray-600 mt-1">
                     {result?.email && (

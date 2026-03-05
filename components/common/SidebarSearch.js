@@ -7,7 +7,7 @@ import api from '@/helpers/axios';
 import { followTo, unFollowTo } from '@/views/settings/store';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FaSearch, FaEllipsisV, FaMapMarkerAlt, FaHeart, FaGraduationCap, FaUsers, FaTint, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaSearch, FaEllipsisV, FaMapMarkerAlt, FaHeart, FaGraduationCap, FaUsers, FaTint, FaChevronDown, FaChevronUp, FaCheckCircle } from 'react-icons/fa';
 
 // General people search API
 const searchApi = async (query) => {
@@ -566,6 +566,9 @@ const SidebarSearch = () => {
                           {result.fname + " " + result.last_name}
                         </div>
                       </Link>
+                      {result?.is_verified && (
+                        <FaCheckCircle className="text-blue-500 text-xs" />
+                      )}
                       {result?.followers?.length > 0 && (
                         <div className="text-xs text-gray-500 truncate">
                           {result.followers.map(f => `${f.follower_client.display_name}`).join(', ')} Following
