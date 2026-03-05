@@ -102,7 +102,7 @@ function FeedHeaderInner({
     try {
       await api.post('/client/nickname', { nickname: nickname, target_id: data?.client?.id });
       toast.success('Nickname saved successfully');
-      dispatch(getMyProfile());
+      dispatch(getUserProfileByUsername(data?.client?.username));
       setIsEditingNickname(false);
     } catch (error) {
       console.error('Error saving nickname:', error);
@@ -1048,26 +1048,37 @@ function FeedHeaderInner({
               <div className="data-info mb-2">
                 <div className="flex items-center gap-2">
                   <Link href={`/${data?.client?.username}`}>
-                    <h2 className="text-xl font-bold hover:underline">
+                    <h2 className="flex items-center text-xl font-bold hover:underline">
                       {data?.client
                         ? data?.client?.display_name || data?.client?.fname + " " + data?.client?.last_name
                         : "Loading..."}
-                      {data?.client?.custom_nickname && `(${data?.client?.custom_nickname})`}
+                      {data?.client?.is_verified && (
+                        <FaCheckCircle className="text-blue-500 ml-1 mt-1" />
+                      )}
+                      {!data?.client?.custom_nickname && data?.client && (
+                        <button
+                          onClick={() => setIsEditingNickname(!isEditingNickname)}
+                          className="ml-2 mt-1 text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
+                          title="Edit nickname"
+                        >
+                          <FaPen className="text-xs" />
+                        </button>
+                      )}
                     </h2>
+                    {data?.client?.custom_nickname && `(${data?.client?.custom_nickname})`}
+                    {data?.client?.custom_nickname && data?.client && (
+                      <button
+                        onClick={() => setIsEditingNickname(!isEditingNickname)}
+                        className="ml-2 mt-1 text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
+                        title="Edit nickname"
+                      >
+                        <FaPen className="text-xs" />
+                      </button>
+                    )}
 
                   </Link>
-                  {data?.client?.is_verified && (
-                    <FaCheckCircle className="text-blue-500 ml-1 mt-1" />
-                  )}
-                  {data?.client && (
-                    <button
-                      onClick={() => setIsEditingNickname(!isEditingNickname)}
-                      className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-gray-100"
-                      title="Edit nickname"
-                    >
-                      <FaPen className="text-xs" />
-                    </button>
-                  )}
+
+
                 </div>
                 {isEditingNickname && (
                   <div className="flex items-center gap-2 mt-1">

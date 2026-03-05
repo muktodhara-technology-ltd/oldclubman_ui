@@ -3349,14 +3349,15 @@ const PostList = ({ postsData }) => {
                 <div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Link href={`/${item?.client?.username}`}>
-                      <h4 className="font-medium cursor-pointer hover:underline">
+                      <h4 className="flex items-center font-medium cursor-pointer hover:underline">
                         {item?.client?.display_name || item?.client?.fname + " " + item?.client?.last_name}
-                        {item?.client?.custom_nickname ? ` (${item.client.custom_nickname})` : ""}
+                        {item?.client?.is_verified && (
+                          <FaCheckCircle className="text-blue-500  ml-1 mt-1 " />
+                        )}
                       </h4>
+                      {item?.client?.custom_nickname ? ` (${item.client.custom_nickname})` : ""}
                     </Link>
-                    {item?.client?.is_verified && (
-                      <FaCheckCircle className="text-blue-500" />
-                    )}
+
                     {item?.shared_post && (
                       <>
                         <span className="text-gray-500 hidden sm:inline">•</span>
@@ -3371,11 +3372,7 @@ const PostList = ({ postsData }) => {
                       </>
                     )}
 
-                    <span className="text-gray-500 hidden sm:inline">•</span>
 
-                    <p className="text-sm text-gray-500 whitespace-nowrap">
-                      {formatCompactTime(item.created_at)}
-                    </p>
 
                     {/* Check-in and location details */}
                     {(() => {
@@ -3476,6 +3473,12 @@ const PostList = ({ postsData }) => {
 
                     return (
                       <p className="text-gray-500 text-sm flex items-center gap-1">
+
+
+                        <p className="text-sm text-gray-500 whitespace-nowrap">
+                          {formatCompactTime(item.created_at)}
+                        </p>
+                        <span className="text-gray-500 hidden sm:inline">•</span>
                         {item?.client?.fromcountry?.name ? item?.client?.fromcountry?.name : 'This Account Location Not Set Yet.'}
                         {isOwnPost ? (
                           <button
