@@ -3842,6 +3842,8 @@ const PostList = ({ postsData }) => {
                     onClick={() => {
                       if (item.single_reaction) {
                         handleDeleteReaction(item.id);
+                      } else {
+                        handleReaction(item.id, "like");
                       }
                     }}
                   >
@@ -4663,6 +4665,7 @@ const PostList = ({ postsData }) => {
         profile={profile}
         handleShare={handleShare}
         handleDeleteReaction={handleDeleteReaction}
+        handleReaction={handleReaction}
         handleImagePreview={handleImagePreview}
         renderContentWithMentions={renderContentWithMentions}
         showingReactionsIcon={showingReactionsIcon}

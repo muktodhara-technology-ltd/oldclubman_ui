@@ -11,199 +11,199 @@ export const initialPostData = {
 }
 
 
-export const getGathering = createAsyncThunk( 'gathering/getGathering', async (_, { dispatch }) => {
-    dispatch(showPreloader());
-    const result = axios.get( "client/gathering" )
+export const getGathering = createAsyncThunk('gathering/getGathering', async (_, { dispatch }) => {
+  dispatch(showPreloader());
+  const result = axios.get("client/gathering")
     .then((res) => {
-        const resData = res.data.data;
-        dispatch(hidePreloader());
-        return resData;
+      const resData = res.data.data;
+      dispatch(hidePreloader());
+      return resData;
     })
     .catch((err) => {
-        dispatch(hidePreloader());
-        errorResponse(err);
+      dispatch(hidePreloader());
+      errorResponse(err);
     })
-    return result;
-} )
+  return result;
+})
 
-export const getPosts = createAsyncThunk( 'gathering/getPosts', async ({ page = 1, search = "" } = {}) => {
-  const result = axios.get( `post/10?page=${page}&search=${search}` )
-  .then((res) => {
+export const getPosts = createAsyncThunk('gathering/getPosts', async ({ page = 1, search = "" } = {}) => {
+  const result = axios.get(`post/10?page=${page}&search=${search}`)
+    .then((res) => {
       console.log('📄 API Response for page', page, ':', res.data);
       const resData = res.data.data;
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const getPostById = createAsyncThunk( 'gathering/getPostById', async (id, { dispatch }) => {
+export const getPostById = createAsyncThunk('gathering/getPostById', async (id, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.get( `client/singlePost/${id}` )
-  .then((res) => {
-      console.log('get by id',res.data.data.value)
+  const result = axios.get(`client/singlePost/${id}`)
+    .then((res) => {
+      console.log('get by id', res.data.data.value)
       const resData = res.data.data.value;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
-      dispatch(hidePreloader());
-      errorResponse(err);
-  })
-  return result;
-} )
-
-export const storePost = createAsyncThunk( 'gathering/storePost', async (data, { dispatch }) => {
-    dispatch(showPreloader());
-    const result = axios.post( "post/store", data )
-    .then((res) => {
-        const resData = res.data.data;
-        dispatch(hidePreloader());
-        return resData;
     })
     .catch((err) => {
-        dispatch(hidePreloader());
-        errorResponse(err);
+      dispatch(hidePreloader());
+      errorResponse(err);
     })
-    return result;
-} )
+  return result;
+})
 
-export const updatePost = createAsyncThunk( 'gathering/updatePost', async (data, { dispatch }) => {
+export const storePost = createAsyncThunk('gathering/storePost', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( `/post/update/${data?.id}`, data )
-  .then((res) => {
+  const result = axios.post("post/store", data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const sharePost = createAsyncThunk( 'gathering/sharePost', async (id, { dispatch }) => {
+export const updatePost = createAsyncThunk('gathering/updatePost', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( "post/share", id )
-  .then((res) => {
+  const result = axios.post(`/post/update/${data?.id}`, data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const storeComments = createAsyncThunk( 'gathering/storeComments', async (data, { dispatch }) => {
+export const sharePost = createAsyncThunk('gathering/sharePost', async (id, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( "comment/store", data )
-  .then((res) => {
+  const result = axios.post("post/share", id)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const storeCommentReactions = createAsyncThunk( 'gathering/storeCommentReactions', async (data, { dispatch }) => {
+export const storeComments = createAsyncThunk('gathering/storeComments', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( "comment/reaction_save", data )
-  .then((res) => {
+  const result = axios.post("comment/store", data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const storePostReactions = createAsyncThunk( 'gathering/storePostReactions', async (data, { dispatch }) => {
+export const storeCommentReactions = createAsyncThunk('gathering/storeCommentReactions', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( "/post/reaction", data )
-  .then((res) => {
+  const result = axios.post("comment/reaction_save", data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const updatePostPrivacy = createAsyncThunk( 'gathering/updatePostPrivacy', async (data, { dispatch }) => {
+export const storePostReactions = createAsyncThunk('gathering/storePostReactions', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( `/post/privacy/${data.id}`, data )
-  .then((res) => {
+  const result = axios.post("/post/reaction", data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const deletePost = createAsyncThunk( 'gathering/deletePost', async (id, { dispatch }) => {
+export const updatePostPrivacy = createAsyncThunk('gathering/updatePostPrivacy', async (data, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( `/post/delete/${id}` )
-  .then((res) => {
+  const result = axios.post(`/post/privacy/${data.id}`, data)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const deletePostReaction = createAsyncThunk( 'gathering/deletePostReaction', async (postId, { dispatch }) => {
+export const deletePost = createAsyncThunk('gathering/deletePost', async (id, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.post( `/post_reaction_delete`, { post_id: postId } )
-  .then((res) => {
+  const result = axios.post(`/post/delete/${id}`)
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
 
-export const searchPosts = createAsyncThunk( 'gathering/searchPosts', async (searchQuery, { dispatch }) => {
+export const deletePostReaction = createAsyncThunk('gathering/deletePostReaction', async (postId, { dispatch }) => {
   dispatch(showPreloader());
-  const result = axios.get( `post/search?search=${searchQuery}` )
-  .then((res) => {
+  const result = axios.post(`/post_reaction_delete`, { post_id: postId })
+    .then((res) => {
       const resData = res.data.data;
       dispatch(hidePreloader());
       return resData;
-  })
-  .catch((err) => {
+    })
+    .catch((err) => {
       dispatch(hidePreloader());
       errorResponse(err);
-  })
+    })
   return result;
-} )
+})
+
+export const searchPosts = createAsyncThunk('gathering/searchPosts', async (searchQuery, { dispatch }) => {
+  dispatch(showPreloader());
+  const result = axios.get(`post/search?search=${searchQuery}`)
+    .then((res) => {
+      const resData = res.data.data;
+      dispatch(hidePreloader());
+      return resData;
+    })
+    .catch((err) => {
+      dispatch(hidePreloader());
+      errorResponse(err);
+    })
+  return result;
+})
 
 export const likeComment = createAsyncThunk(
   "gathering/likeComment",
@@ -255,13 +255,13 @@ export const replyToComment = createAsyncThunk(
 
 
 
-export const getCommentReplies = createAsyncThunk( 
-  'gathering/getCommentReplies', 
+export const getCommentReplies = createAsyncThunk(
+  'gathering/getCommentReplies',
   async (commentId, { dispatch }) => {
     dispatch(showPreloader());
     try {
       const response = await axios.get(`comment/reply?comment_id=${commentId}`);
-      console.log('comment reply',response)
+      console.log('comment reply', response)
       dispatch(hidePreloader());
       return response.data;
     } catch (err) {
@@ -280,7 +280,7 @@ export const gatheringSlice = createSlice({
   initialState: {
     gatheringData: {},
     singlePostData: {},
-    postsData:{},
+    postsData: {},
     loading: false,
     basicPostData: initialPostData,
     isPostModalOpen: false
@@ -291,7 +291,7 @@ export const gatheringSlice = createSlice({
     },
 
     setPostModalOpen: (state, action) => {
-        state.isPostModalOpen = action.payload
+      state.isPostModalOpen = action.payload
     }
   },
   extraReducers: (builder) => {
@@ -315,7 +315,7 @@ export const gatheringSlice = createSlice({
       .addCase(getPosts.fulfilled, (state, action) => {
         const newData = action.payload;
         console.log('🔄 Redux - Page:', newData?.current_page, '/', newData?.last_page, '| Posts:', newData?.data?.length);
-        
+
         // Handle the case where API doesn't return pagination metadata
         if (!newData) {
           console.log('❌ Redux - No data received');
@@ -345,7 +345,7 @@ export const gatheringSlice = createSlice({
           console.log('➕ Redux - Appending page data');
           const existingData = state.postsData?.data || [];
           const newPosts = newData?.data || [];
-          
+
           state.postsData = {
             ...newData,
             data: [...existingData, ...newPosts]
@@ -384,7 +384,7 @@ export const gatheringSlice = createSlice({
       .addCase(searchPosts.fulfilled, (state, action) => {
         const searchData = action.payload;
         console.log('🔍 Search Results:', searchData?.data?.length);
-        
+
         if (!searchData) {
           console.log('❌ Search - No data received');
           state.loading = false;
@@ -412,5 +412,5 @@ export const gatheringSlice = createSlice({
   },
 });
 
-export const {bindPostData, setPostModalOpen} = gatheringSlice.actions;
+export const { bindPostData, setPostModalOpen } = gatheringSlice.actions;
 export default gatheringSlice.reducer;

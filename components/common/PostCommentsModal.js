@@ -32,6 +32,7 @@ const PostCommentsModal = ({
     // Handlers passed from parent
     handleShare,
     handleDeleteReaction,
+    handleReaction,
     handleImagePreview,
     // Render helpers passed from parent
     renderContentWithMentions,
@@ -593,6 +594,8 @@ const PostCommentsModal = ({
                                 onClick={() => {
                                     if (basicPostData.single_reaction) {
                                         handleDeleteReaction(basicPostData.id);
+                                    } else {
+                                        handleReaction(basicPostData.id, "like");
                                     }
                                 }}
                             >
