@@ -24,7 +24,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
   const { allChat, prevChat, convarsationData } = useSelector(({ chat }) => chat);
   const { userFollowers, profile, userProfileData } = useSelector(({ settings }) => settings);
   const dispatch = useDispatch()
-  const [message, setMessage] = useState(initialMessage);
+  const [message, setMessage] = useState(initialMessage ?? '');
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -78,7 +78,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
 
   // Update message when initialMessage changes
   useEffect(() => {
-    if (initialMessage) {
+    if (initialMessage != null) {
       setMessage(initialMessage);
     }
   }, [initialMessage]);
@@ -174,7 +174,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
   // Handle sending a message
   const handleSendMessage = async (e) => {
     e.preventDefault(); // Prevent form submission
-    if (!message.trim() && !selectedFile) return;
+    if (!(message ?? '').trim() && !selectedFile) return;
 
     // If we have a pending conversation (exists but no ID), try to find it first
     let chatId = currentChat?.id || convarsationData?.id;
@@ -854,7 +854,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
             </button>
             <input
               type="text"
-              value={message}
+              value={message ?? ''}
               onChange={(e) => setMessage(e.target.value)}
               onPaste={handlePaste}
               placeholder="Type a message..."
@@ -862,7 +862,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
             />
             <button
               type="submit"
-              disabled={(!message.trim() && !selectedFile) || isLoading}
+              disabled={(!(message ?? '').trim() && !selectedFile) || isLoading}
               className="text-blue-600 hover:text-blue-700 disabled:text-gray-400 p-2"
               aria-label="Send message"
             >
