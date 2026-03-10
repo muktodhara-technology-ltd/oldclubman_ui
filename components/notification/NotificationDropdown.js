@@ -5,7 +5,6 @@ import { useDispatch, useSelector } from "react-redux";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useChatBox } from "@/contexts/ChatBoxContext";
-import { usePostComments } from "@/contexts/PostCommentsContext";
 import {
   getNotifications,
   getUnreadCount,
@@ -19,7 +18,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
   const router = useRouter();
   const { openChatByConversationId } = useChatBox();
-  const { openPostComments } = usePostComments();
   const { notifications, loading, unreadCount } = useSelector(
     ({ notification }) => notification
   );
@@ -209,18 +207,15 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                             router.push(notification.action_url || '/user/messages');
                           }
                         } else if (notification.type === 'like' || notification.type === 'comment') {
-                          // Handle like/comment notifications - open post comments modal
-                          // Extract post_id from notification or action_url
-                          const postId = notification.post_id || notification.action_url?.match(/post\/(\d+)/)?.[1];
+                          // Handle like/comment notifications - navigate to post page
+                          // Prefer post UUID: post.id (from API), then action_url, then post_id (may be legacy numeric)
+                          const postId =
+                            notification.post?.id ||
+                            notification.action_url?.match(/post\/([^/?]+)/)?.[1] ||
+                            notification.post_id;
                           if (postId) {
-                            // Navigate to home first, then open the comments modal
-                            router.push('/');
-                            // Small delay to ensure navigation completes
-                            setTimeout(() => {
-                              openPostComments(postId);
-                            }, 100);
+                            router.push(`/post/${postId}`);
                           } else {
-                            // Fallback to navigation if can't extract post ID
                             router.push(notification.action_url || '/');
                           }
                         } else {
