@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FaCloudSun, FaSun, FaCloud, FaCloudRain, FaSnowflake, FaBolt, FaSmog } from 'react-icons/fa';
 import { useSelector } from 'react-redux';
 
+const WIDE_LAYOUT_MIN_WIDTH = 420; // px - horizontal layout when container >= this
+
 const Weather = () => {
     const { profile } = useSelector((state) => state.settings ? state.settings : { profile: null });
     const [weatherData, setWeatherData] = useState(null);
@@ -9,7 +11,24 @@ const Weather = () => {
     const [error, setError] = useState(null);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [unit, setUnit] = useState('C'); // 'C' or 'F'
+    const [isWideLayout, setIsWideLayout] = useState(false); // default stacked; ResizeObserver updates based on container width
+    const containerRef = useRef(null);
     const weatherFetched = useRef(false);
+
+    // Layout based on container width, not viewport - works in sidebar (narrow) vs full-width (wide)
+    useEffect(() => {
+        if (loading || error) return;
+        const el = containerRef.current;
+        if (!el) return;
+        const update = () => {
+            const width = el.offsetWidth ?? 0;
+            setIsWideLayout(width >= WIDE_LAYOUT_MIN_WIDTH);
+        };
+        update(); // immediate
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [loading, error]);
 
     useEffect(() => {
         // Update time every minute
@@ -161,28 +180,29 @@ const Weather = () => {
     }, [profile]);
 
     // Helper to get icon based on WMO weather code from Open-Meteo
+    const iconClass = "w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 drop-shadow-md";
     const getWeatherIcon = (code) => {
         // 0: Clear sky
-        if (code === 0) return <FaSun className="text-yellow-500 w-16 h-16 drop-shadow-md" />;
+        if (code === 0) return <FaSun className={`text-yellow-500 ${iconClass}`} />;
         // 1, 2, 3: Mainly clear, partly cloudy, and overcast
-        if (code >= 1 && code <= 3) return <FaCloudSun className="text-blue-400 w-16 h-16 drop-shadow-md" />;
+        if (code >= 1 && code <= 3) return <FaCloudSun className={`text-blue-400 ${iconClass}`} />;
         // 45, 48: Fog
-        if (code === 45 || code === 48) return <FaSmog className="text-gray-400 w-16 h-16 drop-shadow-md" />;
+        if (code === 45 || code === 48) return <FaSmog className={`text-gray-400 ${iconClass}`} />;
         // 51-67: Drizzle and Rain
-        if (code >= 51 && code <= 67) return <FaCloudRain className="text-blue-600 w-16 h-16 drop-shadow-md" />;
+        if (code >= 51 && code <= 67) return <FaCloudRain className={`text-blue-600 ${iconClass}`} />;
         // 71-77: Snow
-        if (code >= 71 && code <= 77) return <FaSnowflake className="text-blue-300 w-16 h-16 drop-shadow-md" />;
+        if (code >= 71 && code <= 77) return <FaSnowflake className={`text-blue-300 ${iconClass}`} />;
         // 80-82: Rain showers
-        if (code >= 80 && code <= 82) return <FaCloudRain className="text-blue-600 w-16 h-16 drop-shadow-md" />;
+        if (code >= 80 && code <= 82) return <FaCloudRain className={`text-blue-600 ${iconClass}`} />;
         // 85-86: Snow showers
-        if (code >= 85 && code <= 86) return <FaSnowflake className="text-blue-300 w-16 h-16 drop-shadow-md" />;
+        if (code >= 85 && code <= 86) return <FaSnowflake className={`text-blue-300 ${iconClass}`} />;
         // 95-99: Thunderstorm
-        if (code >= 95 && code <= 99) return <FaBolt className="text-yellow-600 w-16 h-16 drop-shadow-md" />;
+        if (code >= 95 && code <= 99) return <FaBolt className={`text-yellow-600 ${iconClass}`} />;
 
-        return <FaCloudSun className="text-blue-500 w-16 h-16 drop-shadow-md" />;
+        return <FaCloudSun className={`text-blue-500 ${iconClass}`} />;
     };
 
-    // Format Date: "February 01, 2026 | Sunday | 07:48PM"
+    // Format Date: "March 11, 2026 | Wednesday | 11:54 AM"
     const formatDate = (date) => {
         const optionsDate = { month: 'long', day: '2-digit', year: 'numeric' };
         const optionsDay = { weekday: 'long' };
@@ -190,17 +210,18 @@ const Weather = () => {
 
         const dateStr = date.toLocaleDateString('en-US', optionsDate);
         const dayStr = date.toLocaleDateString('en-US', optionsDay);
-        const timeStr = date.toLocaleTimeString('en-US', optionsTime);
+        let timeStr = date.toLocaleTimeString('en-US', optionsTime);
+        // Non-breaking space before AM/PM to prevent "AM" wrapping alone to next line
+        timeStr = timeStr.replace(/\s([AP]M)$/, '\u00A0$1');
 
-        // Remove space from time if needed (e.g. 07:48 PM -> 07:48PM) or keep as is
         return `${dateStr} | ${dayStr} | ${timeStr}`;
     };
 
     if (loading) {
         return (
             <div className="flex items-center justify-center mt-1">
-                <div className="bg-white rounded-lg border border-gray-300 p-6 w-full shadow-sm animate-pulse min-h-[200px] flex items-center justify-center">
-                    <span className="text-gray-400">Loading Weather...</span>
+                <div className="bg-white rounded-lg border border-gray-300 p-4 sm:p-6 w-full shadow-sm animate-pulse min-h-[160px] sm:min-h-[200px] flex items-center justify-center">
+                    <span className="text-gray-400 text-sm sm:text-base">Loading Weather...</span>
                 </div>
             </div>
         );
@@ -209,8 +230,8 @@ const Weather = () => {
     if (error) {
         return (
             <div className="flex items-center justify-center mt-1">
-                <div className="bg-white rounded-lg border border-gray-300 p-6 w-full shadow-sm min-h-[200px] flex items-center justify-center">
-                    <span className="text-red-400">{error}</span>
+                <div className="bg-white rounded-lg border border-gray-300 p-4 sm:p-6 w-full shadow-sm min-h-[160px] sm:min-h-[200px] flex items-center justify-center">
+                    <span className="text-red-400 text-sm sm:text-base">{error}</span>
                 </div>
             </div>
         );
@@ -222,19 +243,20 @@ const Weather = () => {
         : Math.round((weatherData.temp * 9 / 5) + 32);
 
     return (
-        <div className="flex items-center justify-center mt-1">
-            <div className="bg-white rounded-lg border border-gray-300 p-6 w-full shadow-sm">
-                <div className="flex items-center border rounded-xl p-2 border-gray-200 justify-between mb-2 px-4">
+        <div className="flex items-center justify-center mt-1 min-w-0">
+            <div ref={containerRef} className="bg-white rounded-lg border border-gray-300 p-3 sm:p-4 md:p-6 w-full min-w-0 max-w-full shadow-sm">
+                {/* Wide layout (horizontal) when container >= 420px; stacked when narrow */}
+                <div className={`flex gap-3 sm:gap-4 border rounded-xl p-2 sm:p-3 md:p-4 border-gray-200 ${isWideLayout ? 'flex-row items-center justify-between md:px-4' : 'flex-col'}`}>
                     {/* Left: Icon & Temp */}
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
+                    <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="relative shrink-0">
                             {getWeatherIcon(weatherData.weatherCode)}
                         </div>
-                        <div className="flex items-start leading-none">
-                            <span className="text-[5rem] font-normal text-gray-800 -tracking-wide">
+                        <div className="flex items-start leading-none min-w-0">
+                            <span className="text-3xl sm:text-4xl md:text-5xl lg:text-[5rem] font-normal text-gray-800 -tracking-wide">
                                 {displayTemp}
                             </span>
-                            <div className="flex items-center text-xl text-gray-500 mt-3 font-light gap-2 ml-2">
+                            <div className="flex items-center text-sm sm:text-base md:text-xl text-gray-500 mt-1 sm:mt-2 md:mt-3 font-light gap-1 sm:gap-2 ml-1 sm:ml-2 shrink-0">
                                 <span
                                     className={`font-medium cursor-pointer ${unit === 'C' ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
                                     onClick={() => setUnit('C')}
@@ -252,8 +274,8 @@ const Weather = () => {
                         </div>
                     </div>
 
-                    {/* Right: Stats */}
-                    <div className="text-sm font-medium text-gray-500 space-y-1 min-w-max">
+                    {/* Stats - column on right when wide, below when narrow */}
+                    <div className={`flex flex-col gap-0.5 sm:gap-1 text-xs sm:text-sm font-medium text-gray-500 ${isWideLayout ? 'min-w-max' : ''}`}>
                         <div>Precipitation: {weatherData.precipitation}%</div>
                         <div>Humidity: {weatherData.humidity}%</div>
                         <div>Wind: {weatherData.wind} km/h</div>
@@ -261,11 +283,11 @@ const Weather = () => {
                 </div>
 
                 {/* Bottom: Location & Date */}
-                <div className="text-center mt-2 space-y-1">
-                    <h2 className="font-serif text-xl font-bold text-black tracking-wide">
+                <div className="text-center mt-1 sm:mt-2 space-y-0.5 sm:space-y-1">
+                    <h2 className="font-serif text-xs sm:text-base md:text-xl font-bold text-black tracking-wide break-words">
                         {weatherData.location}
                     </h2>
-                    <p className="text-base font-bold text-gray-800">
+                    <p className="text-xs sm:text-sm md:text-base font-bold text-gray-800 break-words">
                         {formatDate(currentTime)}
                     </p>
                 </div>
