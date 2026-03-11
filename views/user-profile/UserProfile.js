@@ -34,6 +34,7 @@ import { CiHeart, CiLocationOn } from "react-icons/ci";
 import FeedLayout from "@/components/common/FeedLayout";
 import EditDetails from "../about/EditDetails";
 import toast from "react-hot-toast";
+import FollowSuggestion from "@/components/common/FollowSuggestion";
 
 const UserProfile = () => {
   const { userProfileData, profile, profileData, profileSettingData, privacyDetailsModalOpen } = useSelector(({ settings }) => settings);
@@ -392,11 +393,9 @@ const UserProfile = () => {
               </div> */}
 
                 {/* Who to follow Widget */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h3 className="text-lg font-semibold mb-3">Who to follow</h3>
-                  <div className="empty-state text-gray-400 text-sm py-4">
-                    {/* Empty state */}
-                  </div>
+                <div className="">
+                    <FollowSuggestion/>
+                 
                 </div>
               </div>
 
