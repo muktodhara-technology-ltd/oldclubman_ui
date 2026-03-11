@@ -1022,7 +1022,7 @@ function FeedHeaderInner({
                     alt="oldclubman"
                     width={100}
                     height={100}
-                    src={getClientImageUrl(data?.client?.image)}
+                    src={process.env.NEXT_PUBLIC_FILE_PATH + data?.client?.image}
                     className="w-full h-full object-cover rounded-full"
                     onError={(e) => {
                       e.target.onerror = null;
