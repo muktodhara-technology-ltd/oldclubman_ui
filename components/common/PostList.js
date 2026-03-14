@@ -153,8 +153,39 @@ const PostList = ({ postsData }) => {
   const [profilePopup, setProfilePopup] = useState({ isVisible: false, userId: null, position: { x: 0, y: 0 }, profileData: null });
   const [followLoading, setFollowLoading] = useState(false);
   const hidePopupTimeoutRef = useRef(null);
+  const [reactionClientsPopup, setReactionClientsPopup] = useState({ postId: null, clients: [], loading: false });
+  const reactionClientsTimeoutRef = useRef(null);
 
   const profilePopupAnchorRef = useRef(null);
+
+  // Fetch reaction clients for hover popover
+  const fetchReactionClients = useCallback(async (postId) => {
+    if (!postId) return;
+    setReactionClientsPopup(prev => ({ ...prev, postId, loading: true, clients: prev.postId === postId ? prev.clients : [] }));
+    try {
+      const response = await api.get(`/post_reaction_clients/${postId}`);
+      const raw = response?.data?.data ?? response?.data?.clients ?? response?.data;
+      const clients = Array.isArray(raw) ? raw : [];
+      setReactionClientsPopup(prev => prev.postId === postId ? { ...prev, clients, loading: false } : prev);
+    } catch (err) {
+      console.error("Failed to fetch reaction clients:", err);
+      setReactionClientsPopup(prev => prev.postId === postId ? { ...prev, clients: [], loading: false } : prev);
+    }
+  }, []);
+
+  const handleReactionClientsMouseEnter = useCallback((postId) => {
+    if (reactionClientsTimeoutRef.current) {
+      clearTimeout(reactionClientsTimeoutRef.current);
+      reactionClientsTimeoutRef.current = null;
+    }
+    fetchReactionClients(postId);
+  }, [fetchReactionClients]);
+
+  const handleReactionClientsMouseLeave = useCallback(() => {
+    reactionClientsTimeoutRef.current = setTimeout(() => {
+      setReactionClientsPopup({ postId: null, clients: [], loading: false });
+    }, 200);
+  }, []);
 
   // Effect to handle notification-triggered post comments modal
   useEffect(() => {
@@ -3804,7 +3835,11 @@ const PostList = ({ postsData }) => {
 
             <div className="border-gray-200 border-t border-b py-2 mt-2">
               <div className="flex items-center">
-                <span className="mr-2">
+                <span
+                  className="mr-2 relative cursor-pointer"
+                  onMouseEnter={() => handleReactionClientsMouseEnter(item.id)}
+                  onMouseLeave={handleReactionClientsMouseLeave}
+                >
                   {/* showing reactions and counts immidiate after post */}
                   {item?.multiple_reaction_counts?.length > 0 &&
                     item?.multiple_reaction_counts
@@ -3812,6 +3847,50 @@ const PostList = ({ postsData }) => {
                       .map((reaction, index) => (
                         showingReactionsIcon(reaction, index)
                       ))}
+                  {/* Reaction clients popover - shows who liked/reacted */}
+                  {reactionClientsPopup.postId === item.id && Number(item.totalCount) > 0 && (
+                    <div
+                      className="absolute bottom-full left-0 mb-1 z-50 min-w-[200px] max-w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 py-2 max-h-[240px] overflow-y-auto"
+                      onMouseEnter={() => {
+                        if (reactionClientsTimeoutRef.current) {
+                          clearTimeout(reactionClientsTimeoutRef.current);
+                          reactionClientsTimeoutRef.current = null;
+                        }
+                      }}
+                      onMouseLeave={handleReactionClientsMouseLeave}
+                    >
+                      <div className="px-3 py-1.5 border-b border-gray-100 text-xs font-semibold text-gray-600">
+                        {Number(item.totalCount)} reaction{Number(item.totalCount) !== 1 ? 's' : ''}
+                      </div>
+                      {reactionClientsPopup.loading ? (
+                        <div className="px-3 py-4 text-center text-sm text-gray-500">Loading...</div>
+                      ) : reactionClientsPopup.clients?.length > 0 ? (
+                        <div className="py-1">
+                          {reactionClientsPopup.clients.map((client) => {
+                            const username = client.username || client.client?.username;
+                            return (
+                            <Link
+                              key={client.id || client.client_id}
+                              href={username ? `/${username}` : '#'}
+                              className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50"
+                            >
+                              <img
+                                src={getClientImageUrl(client.image || client.avatar || client.client?.image)}
+                                alt=""
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                              <span className="text-sm font-medium text-gray-800 truncate">
+                                {client.fname || client.client?.fname} {client.last_name || client.client?.last_name}
+                              </span>
+                            </Link>
+                          );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-4 text-sm text-gray-500">No reactions yet</div>
+                      )}
+                    </div>
+                  )}
                 </span>
                 {/* <span className="text-sm">{item?.single_reaction?.client?.fname + " " + item?.single_reaction?.client?.last_name + " and " + totalCount }</span> */}
                 <span className="text-sm">{Number(item.totalCount)}</span>

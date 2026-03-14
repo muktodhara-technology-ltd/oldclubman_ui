@@ -57,34 +57,33 @@ const PostDetailsPage = () => {
 
     const initialImageIndex = searchParams.get('image');
 
-    // Fetch Post Details
+    // Fetch Post Details - use getPostById for consistency with PostCommentsModal (includes comments)
     const fetchPostDetails = useCallback(async (loadingState = true) => {
         try {
             if (loadingState && !post) setLoading(true);
-            console.log('Fetching post for ID:', params.id);
-            let response;
+            let postData = null;
             try {
-                // Try client endpoint first (Authenticated) to get user-specific data like 'single_reaction'
-                response = await api.get(`/client/singlePost/${params.id}`);
+                const result = await dispatch(getPostById(params.id)).unwrap();
+                postData = result;
             } catch (clientErr) {
                 console.warn('Client endpoint failed, trying fallback to public endpoint...', clientErr);
                 try {
-                    response = await api.get(`/public/post/${params.id}`);
+                    const response = await api.get(`/public/post/${params.id}`);
+                    postData = response.data?.data?.value || response.data?.data?.post || response.data?.post || response.data?.value;
+                    // Ensure comments are merged - API may return them at different paths
+                    if (!postData?.comments?.length && (response.data?.data?.comments || response.data?.comments)) {
+                        postData = { ...postData, comments: response.data?.data?.comments || response.data?.comments };
+                    }
                 } catch (publicErr) {
                     console.error('Fallback endpoint also failed:', publicErr);
                     throw publicErr;
                 }
             }
 
-            console.log('API Response:', response);
-
-            const postData = response.data?.data?.value || response.data?.data?.post || response.data?.post || response.data?.value;
-
             if (postData) {
-                console.log('Post data found:', postData);
-                setPost(postData);
+                // Ensure comments array exists for rendering
+                setPost({ ...postData, comments: postData.comments ?? [] });
             } else {
-                console.error('Post data missing in response:', response.data);
                 if (!post) setError('Post not found');
             }
         } catch (err) {
@@ -93,7 +92,7 @@ const PostDetailsPage = () => {
         } finally {
             if (loadingState) setLoading(false);
         }
-    }, [params.id]);
+    }, [params.id, dispatch]);
 
     useEffect(() => {
         if (params?.id) {
