@@ -155,7 +155,7 @@ const PostDetailsPage = () => {
             .unwrap()
             .then(() => {
                 console.log('[PostDetails] Reaction saved successfully');
-                fetchPostDetails(false);
+                // Removed fetchPostDetails to avoid backend cache
             })
             .catch((error) => {
                 console.error('[PostDetails] Reaction failed:', error);
@@ -181,7 +181,7 @@ const PostDetailsPage = () => {
             .unwrap()
             .then(() => {
                 console.log('[PostDetails] Reaction deleted successfully');
-                fetchPostDetails(false);
+                // Removed fetchPostDetails to avoid backend cache
             })
             .catch((error) => {
                 console.error('[PostDetails] Delete reaction failed:', error);
@@ -235,8 +235,8 @@ const PostDetailsPage = () => {
                         )
                     }));
                 } else {
-                    // Re-fetch to get proper data
-                    fetchPostDetails(false);
+                    // Back-end didn't return valid comment info. Keep the optimistic comment!
+                    console.log("[PostDetails] Backend delay, keeping optimistic comment");
                 }
             })
             .catch((error) => {
@@ -249,21 +249,54 @@ const PostDetailsPage = () => {
 
     // Comment Likes
     const handleCommentReaction = (comment_id, reaction) => {
+        // Optimistic Update
+        setShowCommentReactionsFor(null);
+        setPost(prev => ({
+            ...prev,
+            comments: prev.comments?.map(c => {
+                if (c.id === comment_id) {
+                    const isNewLike = !c.single_reaction;
+                    return {
+                        ...c,
+                        single_reaction: { type: reaction },
+                        reactions_count: isNewLike ? (c.reactions_count || 0) + 1 : c.reactions_count
+                    };
+                }
+                return c;
+            })
+        }));
+
         dispatch(likeComment({ comment_id, reaction_type: reaction })).then(() => {
-            setShowCommentReactionsFor(null);
-            fetchPostDetails(false);
+            // Success
         });
     };
 
     // Reply Likes
     const handleReplyReaction = (reply_id, reaction, commentId) => {
-        dispatch(likeReply({ reply_id, type: reaction })).then(() => {
-            setShowCommentReactionsFor(null);
-            fetchPostDetails(false);
-            // Also refresh replies for this comment if they are loaded
-            if (modalReplies[commentId]) {
-                handleViewAllReplies(commentId);
+        setShowCommentReactionsFor(null);
+
+        // Optimistic Update
+        setModalReplies(prev => {
+            const copy = { ...prev };
+            if (copy[commentId]) {
+                const updateReply = (replies) => {
+                    return replies.map(r => {
+                        if (r.id === reply_id) {
+                            return { ...r, single_reaction: { type: reaction } };
+                        }
+                        if (r.children) {
+                            return { ...r, children: updateReply(r.children) };
+                        }
+                        return r;
+                    });
+                };
+                copy[commentId] = updateReply(copy[commentId]);
             }
+            return copy;
+        });
+
+        dispatch(likeReply({ reply_id, type: reaction })).then(() => {
+            // Success
         });
     };
 
@@ -294,24 +327,68 @@ const PostDetailsPage = () => {
         const content = replyInputs[inputKey];
         if (!content?.trim()) return;
 
+        const optimisticReply = {
+            id: `temp-reply-${Date.now()}`,
+            content: content,
+            created_at: new Date().toISOString(),
+            client_comment: {
+                fname: profile?.client?.fname || 'You',
+                last_name: profile?.client?.last_name || '',
+                image: profile?.client?.image,
+                username: profile?.client?.username
+            },
+            single_reaction: null,
+            parent_id: replyId === commentId ? null : replyId
+        };
+
+        // Optimistic UI updates
+        setReplyInputs(prev => {
+            const copy = { ...prev };
+            delete copy[inputKey];
+            return copy;
+        });
+
+        setPost(prev => ({
+            ...prev,
+            comments: prev.comments?.map(c => 
+                c.id === commentId ? { ...c, replies_count: (c.replies_count || 0) + 1 } : c
+            )
+        }));
+
+        setModalReplies(prev => {
+            const copy = { ...prev };
+            const currentReplies = copy[commentId] || [];
+            
+            if (replyId === commentId) {
+                // Top level reply to main comment
+                copy[commentId] = [...currentReplies, optimisticReply];
+            } else {
+                // Nested reply
+                const insertReply = (replies) => {
+                    return replies.map(r => {
+                        if (r.id === replyId) {
+                            return { ...r, children: [...(r.children || []), optimisticReply] };
+                        }
+                        if (r.children) {
+                            return { ...r, children: insertReply(r.children) };
+                        }
+                        return r;
+                    });
+                };
+                copy[commentId] = insertReply(currentReplies);
+            }
+            return copy;
+        });
+
         const payload = {
             comment_id: commentId,
-            parent_id: replyId === commentId ? null : replyId, // If replying to main comment, parent_id is null? No, usually null for top-level, but API might expect id
+            parent_id: replyId === commentId ? null : replyId, 
             content: content
         };
-        // Fix: parent_id should be the ID of the comment/reply being replied to, OR null if it's a direct reply to the comment?
-        // Checking PostCommentsModal logic: parent_id: replyId === comment.id ? null : replyId
-        // Wait, comment.id is the top level comment.
 
         dispatch(replyToComment(payload))
             .then(() => {
-                setReplyInputs(prev => {
-                    const copy = { ...prev };
-                    delete copy[inputKey];
-                    return copy;
-                });
-                fetchPostDetails();
-                handleViewAllReplies(commentId);
+                // Success - wait for cache to clear over time naturally
             });
     };
 
@@ -617,6 +694,8 @@ const PostDetailsPage = () => {
                                     onClick={() => {
                                         if (post.single_reaction) {
                                             handleDeleteReaction();
+                                        } else {
+                                            handleReaction('like');
                                         }
                                     }}
                                     className="w-full py-2 flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors text-sm font-medium"
