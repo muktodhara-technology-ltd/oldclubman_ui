@@ -11,6 +11,7 @@ import { MdPhotoAlbum, MdPhotoLibrary } from 'react-icons/md';
 import { LuMapPinCheckInside } from 'react-icons/lu';
 import { getImageUrl } from '@/utility';
 import { useVideoUpload } from '@/contexts/VideoUploadContext';
+import api from '@/helpers/axios';
 
 const PostModal = () => {
   const { profile, backgroundOptions } = useSelector(({ settings }) => settings)
@@ -1292,12 +1293,31 @@ const PostModal = () => {
     }
   };
 
-  const handleRemoveFile = (idToRemove) => {
+  const handleRemoveFile = async (idToRemove) => {
     const previewToRemove = filePreviews?.find(preview => preview.id === idToRemove);
     if (previewToRemove) {
-      // If the file has an id (existing file), add to removeFiles
-      if (previewToRemove.id && typeof previewToRemove.id === 'number') {
-        setRemoveFiles(prev => [...prev, previewToRemove.id]);
+      if (!window.confirm('Are you sure you want to remove this image?')) {
+        return;
+      }
+
+      const fileId = previewToRemove.id;
+
+      // In edit mode: call API to delete image from server (existing files have numeric id or UUID)
+      const isBackendFileId = typeof fileId === 'number' || (typeof fileId === 'string' && fileId.includes('-'));
+      if (id && isBackendFileId) {
+        try {
+          await api.post(`/post/delete_image/${fileId}/${id}`);
+          toast.success('Image removed');
+        } catch (err) {
+          console.error('Failed to delete image:', err);
+          toast.error('Failed to remove image');
+          return;
+        }
+      }
+
+      // If the file has an id (existing file), add to removeFiles for form submit
+      if (isBackendFileId) {
+        setRemoveFiles(prev => [...prev, fileId]);
       }
       // Remove from previews
       setFilePreviews(filePreviews.filter(preview => preview.id !== idToRemove));
