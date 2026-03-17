@@ -12,7 +12,7 @@ import {
   markAllAsRead,
   deleteNotification,
 } from "@/views/notification/store";
-import { FaTrash, FaCheck, FaCheckDouble, FaHeart, FaComment, FaShare, FaCommentAlt, FaGift, FaMoneyBillWave } from "react-icons/fa";
+import { FaTrash, FaCheck, FaCheckDouble, FaHeart, FaComment, FaShare, FaCommentAlt, FaReply, FaGift, FaMoneyBillWave } from "react-icons/fa";
 
 const NotificationDropdown = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
@@ -66,7 +66,15 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     dispatch(deleteNotification(notificationId));
   };
 
+  // Comment reply notifications (someone replied to the user's comment)
+  const isCommentReplyType = (type) => {
+    if (!type) return false;
+    const t = String(type).toLowerCase().replace(/-/g, '_');
+    return t === 'reply' || t === 'comment_reply';
+  };
+
   const getNotificationIcon = (type) => {
+    if (isCommentReplyType(type)) return <FaReply className="text-orange-500" />;
     switch (type) {
       case "like":
         return <FaHeart className="text-red-500" />;
@@ -206,8 +214,8 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                             // Fallback to navigation if can't extract ID
                             router.push(notification.action_url || '/user/messages');
                           }
-                        } else if (notification.type === 'like' || notification.type === 'comment') {
-                          // Handle like/comment notifications - navigate to post page
+                        } else if (notification.type === 'like' || notification.type === 'comment' || isCommentReplyType(notification.type)) {
+                          // Handle like, comment, and comment-reply notifications - navigate to post page
                           // Prefer post UUID: post.id (from API), then action_url, then post_id (may be legacy numeric)
                           const postId =
                             notification.post?.id ||
@@ -227,9 +235,16 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                       }}
                       className="cursor-pointer"
                     >
-                      <p className="text-sm text-gray-800 font-medium">
-                        {notification.title}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm text-gray-800 font-medium">
+                          {notification.title}
+                        </p>
+                        {isCommentReplyType(notification.type) && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                            Reply
+                          </span>
+                        )}
+                      </div>
                       {notification.message && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                           {notification.message}

@@ -21,6 +21,7 @@ import {
   FaComment,
   FaShare,
   FaCommentAlt,
+  FaReply,
   FaUserPlus,
   FaInbox,
   FaFilter,
@@ -95,6 +96,9 @@ const NotificationsView = () => {
         return <FaHeart {...iconProps} className="text-red-500" />;
       case "comment":
         return <FaComment {...iconProps} className="text-blue-500" />;
+      case "reply":
+      case "comment_reply":
+        return <FaReply {...iconProps} className="text-orange-500" />;
       case "share":
         return <FaShare {...iconProps} className="text-green-500" />;
       case "message":
@@ -242,8 +246,8 @@ const NotificationsView = () => {
                               // Fallback to navigation if can't extract ID
                               router.push(notification.action_url || '/user/messages');
                             }
-                          } else if (notification.type === 'like' || notification.type === 'comment') {
-                            // Handle like/comment notifications - navigate to post page
+                          } else if (notification.type === 'like' || notification.type === 'comment' || notification.type === 'reply' || notification.type === 'comment_reply') {
+                            // Handle like/comment/reply notifications - navigate to post page
                             // Prefer post UUID: post.id (from API), then action_url (may have correct UUID), then post_id (may be legacy numeric)
                             const postId =
                               notification.post?.id ||

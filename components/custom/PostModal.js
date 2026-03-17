@@ -160,7 +160,13 @@ const PostModal = () => {
     setPlaceSearchResults([]);
   };
 
-  // Search for places using Google Geocoding API
+  // Nominatim requires a valid User-Agent; use a helper for all OSM requests
+  const nominatimFetch = (url) =>
+    fetch(url, {
+      headers: { 'Accept-Language': 'en', 'User-Agent': 'MuktodharaClubApp/1.0 (PlaceSearch)' }
+    });
+
+  // Search for places using Google Geocoding API with Nominatim fallback
   const searchPlaces = async (query) => {
     if (!query || query.trim().length < 3) {
       setPlaceSearchResults([]);
@@ -168,18 +174,46 @@ const PostModal = () => {
     }
 
     setIsSearchingPlaces(true);
-    try {
-      const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    setPlaceSearchResults([]);
 
-      if (googleApiKey) {
-        // Use Google Geocoding API
+    const applyNominatimResults = async () => {
+      try {
+        const response = await nominatimFetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
+        );
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          setPlaceSearchResults([]);
+          return;
+        }
+        const results = data.map((place) => ({
+          place_name: place.display_name,
+          lat: parseFloat(place.lat),
+          lng: parseFloat(place.lon),
+          address: place.display_name,
+          type: place.type,
+          osm_id: place.osm_id
+        }));
+        setPlaceSearchResults(results);
+      } catch (err) {
+        console.error('Nominatim search error:', err);
+        setPlaceSearchResults([]);
+      } finally {
+        setIsSearchingPlaces(false);
+      }
+    };
+
+    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+    if (googleApiKey) {
+      try {
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}&limit=5`
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}`
         );
         const data = await response.json();
 
-        if (data.status === 'OK' && data.results) {
-          const results = data.results.map((place) => ({
+        if (data.status === 'OK' && data.results?.length) {
+          const results = data.results.slice(0, 5).map((place) => ({
             place_name: place.formatted_address,
             lat: place.geometry.location.lat,
             lng: place.geometry.location.lng,
@@ -190,34 +224,17 @@ const PostModal = () => {
             name: place.address_components[0]?.short_name || place.formatted_address.split(',')[0] || ''
           }));
           setPlaceSearchResults(results);
-        } else {
-          console.error('Google Geocoding API error:', data.status);
-          setPlaceSearchResults([]);
+          setIsSearchingPlaces(false);
+          return;
         }
-      } else {
-        // Fallback to Nominatim (OpenStreetMap)
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
-        );
-        const data = await response.json();
-
-        const results = data.map((place) => ({
-          place_name: place.display_name,
-          lat: parseFloat(place.lat),
-          lng: parseFloat(place.lon),
-          address: place.display_name,
-          type: place.type,
-          osm_id: place.osm_id
-        }));
-
-        setPlaceSearchResults(results);
+      } catch (e) {
+        // CORS or network error when calling Google from browser – fall back to Nominatim
       }
-    } catch (error) {
-      console.error('Error searching places:', error);
-      setPlaceSearchResults([]);
-    } finally {
-      setIsSearchingPlaces(false);
+      await applyNominatimResults();
+      return;
     }
+
+    await applyNominatimResults();
   };
 
   // Handle place search input with debounce
@@ -241,7 +258,7 @@ const PostModal = () => {
     };
   }, [placeSearchQuery]);
 
-  // Search for travel from places
+  // Search for travel from places (uses same Nominatim/Google pattern as searchPlaces)
   const searchTravelFromPlaces = async (query) => {
     if (!query || query.trim().length < 3) {
       setTravelFromResults([]);
@@ -249,17 +266,42 @@ const PostModal = () => {
     }
 
     setIsSearchingTravelFrom(true);
-    try {
-      const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    setTravelFromResults([]);
 
-      if (googleApiKey) {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}&limit=5`
+    const runNominatim = async () => {
+      try {
+        const response = await nominatimFetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
         );
         const data = await response.json();
+        const results = Array.isArray(data)
+          ? data.map((place) => ({
+            place_name: place.display_name,
+            lat: parseFloat(place.lat),
+            lng: parseFloat(place.lon),
+            address: place.display_name,
+            type: place.type,
+            osm_id: place.osm_id
+          }))
+          : [];
+        setTravelFromResults(results);
+      } catch (e) {
+        console.error('Travel from search error:', e);
+        setTravelFromResults([]);
+      } finally {
+        setIsSearchingTravelFrom(false);
+      }
+    };
 
-        if (data.status === 'OK' && data.results) {
-          const results = data.results.map((place) => ({
+    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results?.length) {
+          const results = data.results.slice(0, 5).map((place) => ({
             place_name: place.formatted_address,
             lat: place.geometry.location.lat,
             lng: place.geometry.location.lng,
@@ -270,35 +312,17 @@ const PostModal = () => {
             name: place.address_components[0]?.short_name || place.formatted_address.split(',')[0] || ''
           }));
           setTravelFromResults(results);
-        } else {
-          setTravelFromResults([]);
+          setIsSearchingTravelFrom(false);
+          return;
         }
-      } else {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
-        );
-        const data = await response.json();
-
-        const results = data.map((place) => ({
-          place_name: place.display_name,
-          lat: parseFloat(place.lat),
-          lng: parseFloat(place.lon),
-          address: place.display_name,
-          type: place.type,
-          osm_id: place.osm_id
-        }));
-
-        setTravelFromResults(results);
-      }
-    } catch (error) {
-      console.error('Error searching travel from places:', error);
-      setTravelFromResults([]);
-    } finally {
-      setIsSearchingTravelFrom(false);
+      } catch (_) {}
+      await runNominatim();
+    } else {
+      await runNominatim();
     }
   };
 
-  // Search for travel to places
+  // Search for travel to places (uses same Nominatim/Google pattern as searchPlaces)
   const searchTravelToPlaces = async (query) => {
     if (!query || query.trim().length < 3) {
       setTravelToResults([]);
@@ -306,17 +330,42 @@ const PostModal = () => {
     }
 
     setIsSearchingTravelTo(true);
-    try {
-      const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    setTravelToResults([]);
 
-      if (googleApiKey) {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}&limit=5`
+    const runNominatim = async () => {
+      try {
+        const response = await nominatimFetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
         );
         const data = await response.json();
+        const results = Array.isArray(data)
+          ? data.map((place) => ({
+            place_name: place.display_name,
+            lat: parseFloat(place.lat),
+            lng: parseFloat(place.lon),
+            address: place.display_name,
+            type: place.type,
+            osm_id: place.osm_id
+          }))
+          : [];
+        setTravelToResults(results);
+      } catch (e) {
+        console.error('Travel to search error:', e);
+        setTravelToResults([]);
+      } finally {
+        setIsSearchingTravelTo(false);
+      }
+    };
 
-        if (data.status === 'OK' && data.results) {
-          const results = data.results.map((place) => ({
+    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results?.length) {
+          const results = data.results.slice(0, 5).map((place) => ({
             place_name: place.formatted_address,
             lat: place.geometry.location.lat,
             lng: place.geometry.location.lng,
@@ -327,31 +376,13 @@ const PostModal = () => {
             name: place.address_components[0]?.short_name || place.formatted_address.split(',')[0] || ''
           }));
           setTravelToResults(results);
-        } else {
-          setTravelToResults([]);
+          setIsSearchingTravelTo(false);
+          return;
         }
-      } else {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
-        );
-        const data = await response.json();
-
-        const results = data.map((place) => ({
-          place_name: place.display_name,
-          lat: parseFloat(place.lat),
-          lng: parseFloat(place.lon),
-          address: place.display_name,
-          type: place.type,
-          osm_id: place.osm_id
-        }));
-
-        setTravelToResults(results);
-      }
-    } catch (error) {
-      console.error('Error searching travel to places:', error);
-      setTravelToResults([]);
-    } finally {
-      setIsSearchingTravelTo(false);
+      } catch (_) {}
+      await runNominatim();
+    } else {
+      await runNominatim();
     }
   };
 
@@ -2210,29 +2241,31 @@ const PostModal = () => {
                       />
 
 
-                      {/* Search Results Dropdown */}
-                      {showPlaceSearch && placeSearchResults?.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                          {isSearchingPlaces && (
-                            <div className="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                      {/* Search Results Dropdown – show when focused and 3+ chars (searching, results, or no results) */}
+                      {showPlaceSearch && placeSearchQuery.trim().length >= 3 && (
+                        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {isSearchingPlaces ? (
+                            <div className="px-3 py-3 text-sm text-gray-500">Searching...</div>
+                          ) : placeSearchResults?.length > 0 ? (
+                            placeSearchResults.map((place, index) => (
+                              <div
+                                key={index}
+                                onClick={() => {
+                                  selectPlace(place);
+                                }}
+                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="text-sm font-medium text-gray-900">
+                                  {place.place_name.split(',')[0]}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {place.place_name}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-sm text-gray-500">No places found. Try a different search.</div>
                           )}
-                          {placeSearchResults?.map((place, index) => (
-                            <div
-                              key={index}
-                              onClick={() => {
-                                selectPlace(place);
-                                // setShowLocationModal(true);
-                              }}
-                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="text-sm font-medium text-gray-900">
-                                {place.place_name.split(',')[0]}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {place.place_name}
-                              </div>
-                            </div>
-                          ))}
                         </div>
                       )}
                     </div>
