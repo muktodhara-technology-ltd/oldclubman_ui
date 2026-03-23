@@ -68,6 +68,10 @@ const PostModal = () => {
   const travelFromTimeoutRef = useRef(null);
   const travelToTimeoutRef = useRef(null);
 
+  // Auto-detected current posting location (plain string sent to backend)
+  const [postingLocation, setPostingLocation] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
   const params = useParams();
 
   const isBackgroundActive = useMemo(() => {
@@ -165,6 +169,53 @@ const PostModal = () => {
     fetch(url, {
       headers: { 'Accept-Language': 'en', 'User-Agent': 'MuktodharaClubApp/1.0 (PlaceSearch)' }
     });
+
+  // Convert lat/lng to a human-readable address string
+  const reverseGeocode = async (lat, lng) => {
+    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`
+        );
+        const data = await res.json();
+        if (data.status === 'OK' && data.results?.length) {
+          return data.results[0].formatted_address;
+        }
+      } catch (_) { }
+    }
+    // Fallback to Nominatim
+    try {
+      const res = await nominatimFetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      const data = await res.json();
+      if (data?.display_name) return data.display_name;
+    } catch (_) { }
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  };
+
+  // Silently detect location whenever the modal opens
+  useEffect(() => {
+    if (!isPostModalOpen) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+
+    setPostingLocation('');
+    setIsDetectingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const address = await reverseGeocode(coords.latitude, coords.longitude);
+          setPostingLocation(address);
+        } catch (_) { }
+        setIsDetectingLocation(false);
+      },
+      () => setIsDetectingLocation(false),
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 300000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPostModalOpen]);
 
   // Search for places using Google Geocoding API with Nominatim fallback
   const searchPlaces = async (query) => {
@@ -315,7 +366,7 @@ const PostModal = () => {
           setIsSearchingTravelFrom(false);
           return;
         }
-      } catch (_) {}
+      } catch (_) { }
       await runNominatim();
     } else {
       await runNominatim();
@@ -379,7 +430,7 @@ const PostModal = () => {
           setIsSearchingTravelTo(false);
           return;
         }
-      } catch (_) {}
+      } catch (_) { }
       await runNominatim();
     } else {
       await runNominatim();
@@ -1403,6 +1454,10 @@ const PostModal = () => {
       const formData = new FormData();
       formData.append('message', messageContent);
       formData.append('privacy_mode', basicPostData.privacy_mode);
+      if (postingLocation) {
+        formData.append('location', postingLocation);
+        formData.append('location_visibility', 'public');
+      }
 
       // Build post_locations array
       const postLocations = [];
@@ -1512,6 +1567,7 @@ const PostModal = () => {
       setTravelToQuery('');
       setTravelFromResults([]);
       setTravelToResults([]);
+      setPostingLocation('');
       resetRoute();
       resetCheckIn();
       dispatch(setPostModalOpen(false));
@@ -1546,6 +1602,7 @@ const PostModal = () => {
     setTravelToQuery('');
     setTravelFromResults([]);
     setTravelToResults([]);
+    setPostingLocation('');
     resetRoute();
     resetCheckIn();
   }

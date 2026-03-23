@@ -3510,7 +3510,17 @@ const PostList = ({ postsData }) => {
                           {formatCompactTime(item.created_at)}
                         </p>
                         <span className="text-gray-500 hidden sm:inline">•</span>
-                        {item?.client?.fromcountry?.name ? item?.client?.fromcountry?.name : 'This Account Location Not Set Yet.'}
+                        {item?.location && item?.location_visibility === 'public'
+                          ? (() => {
+                            const parts = item.location.split(',').map(p => p.trim());
+                            const filtered = parts.filter(p =>
+                              !/^\d+$/.test(p) && // remove postal codes
+                              !/council|county|municipality|district|prefecture/i.test(p) && // remove admin divisions
+                              !/^(new south wales|victoria|queensland|south australia|western australia|tasmania|northern territory|australian capital territory|england|scotland|wales|northern ireland|california|texas|florida|new york|ontario|british columbia|alberta|quebec|bavaria|île-de-france)$/i.test(p) // remove common state/province names
+                            );
+                            return filtered.join(', ');
+                          })()
+                          : 'Unknown Location'}
                         {isOwnPost ? (
                           <button
                             onClick={handleToggleLocationPrivacy}
@@ -3869,21 +3879,21 @@ const PostList = ({ postsData }) => {
                           {reactionClientsPopup.clients.map((client) => {
                             const username = client.username || client.client?.username;
                             return (
-                            <Link
-                              key={client.id || client.client_id}
-                              href={username ? `/${username}` : '#'}
-                              className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50"
-                            >
-                              <img
-                                src={getClientImageUrl(client.image || client.avatar || client.client?.image)}
-                                alt=""
-                                className="w-8 h-8 rounded-full object-cover"
-                              />
-                              <span className="text-sm font-medium text-gray-800 truncate">
-                                {client.fname || client.client?.fname} {client.last_name || client.client?.last_name}
-                              </span>
-                            </Link>
-                          );
+                              <Link
+                                key={client.id || client.client_id}
+                                href={username ? `/${username}` : '#'}
+                                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50"
+                              >
+                                <img
+                                  src={getClientImageUrl(client.image || client.avatar || client.client?.image)}
+                                  alt=""
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                                <span className="text-sm font-medium text-gray-800 truncate">
+                                  {client.fname || client.client?.fname} {client.last_name || client.client?.last_name}
+                                </span>
+                              </Link>
+                            );
                           })}
                         </div>
                       ) : (
