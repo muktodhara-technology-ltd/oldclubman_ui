@@ -1,41 +1,45 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import axios from '@/helpers/axios';
 
 const ResetPasswordPage = () => {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const searchParams = useSearchParams();
+
+  const token = searchParams.get('token') ?? '';
+  const emailFromUrl = searchParams.get('email') ?? '';
+
+  const [email, setEmail] = useState(emailFromUrl);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const params = useParams()
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    // Basic validation
+    if (!token) return setError('Invalid or missing reset token.');
     if (!email) return setError('Email is required');
     if (!password) return setError('Password is required');
     if (password !== confirmPassword) return setError('Passwords do not match');
     if (password.length < 8) return setError('Password must be at least 8 characters');
 
     setLoading(true);
-    
+
     try {
-      const response = await axios.post(`/client/reset-password/${params?.resettoken}`, {
+      const response = await axios.post(`/client/reset-password/${token}`, {
         email,
         password,
         password_confirmation: confirmPassword
       });
-      
+
       if (response.data.success) {
-        setSuccess('Password reset instructions have been sent to your email.');
+        setSuccess('Your password has been reset successfully. Redirecting to login…');
         setTimeout(() => {
           router.push('/auth/login');
         }, 3000);
