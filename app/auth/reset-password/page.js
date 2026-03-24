@@ -11,7 +11,6 @@ const ResetPasswordPage = () => {
   const token = searchParams.get('token') ?? '';
   const emailFromUrl = searchParams.get('email') ?? '';
 
-  const [email, setEmail] = useState(emailFromUrl);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +23,7 @@ const ResetPasswordPage = () => {
     setSuccess('');
 
     if (!token) return setError('Invalid or missing reset token.');
-    if (!email) return setError('Email is required');
+    if (!emailFromUrl) return setError('Email is missing from the reset link.');
     if (!password) return setError('Password is required');
     if (password !== confirmPassword) return setError('Passwords do not match');
     if (password.length < 8) return setError('Password must be at least 8 characters');
@@ -33,7 +32,7 @@ const ResetPasswordPage = () => {
 
     try {
       const response = await axios.post(`/client/reset-password/${token}`, {
-        email,
+        email: emailFromUrl,
         password,
         password_confirmation: confirmPassword
       });
@@ -59,7 +58,9 @@ const ResetPasswordPage = () => {
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Reset Password</h2>
-          <p className="text-gray-600 mb-6">Enter the email address associated with account.</p>
+          {emailFromUrl && (
+            <p className="text-gray-500 text-sm mb-6">Resetting password for <span className="font-medium text-gray-700">{emailFromUrl}</span></p>
+          )}
         </div>
         
         {error && (
@@ -75,17 +76,6 @@ const ResetPasswordPage = () => {
         )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <input
-              type="email"
-              placeholder="Enter Email"
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-          
           <div>
             <input
               type="password"
