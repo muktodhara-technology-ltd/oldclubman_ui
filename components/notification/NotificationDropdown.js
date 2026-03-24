@@ -97,6 +97,15 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     }
   };
 
+  // Strip [Name](uuid) mention patterns from notification messages
+  const cleanMessage = (msg) => {
+    if (!msg) return '';
+    return msg
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // [Name](id) → Name
+      .replace(/\[[^\]]+\]\([^)]*\)/g, '')       // stray patterns
+      .trim();
+  };
+
   const getImageUrl = (image) => {
     if (!image) return "/common-avator.jpg";
     if (image.startsWith('http')) return image;
@@ -245,9 +254,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                           </span>
                         )}
                       </div>
-                      {notification.message && (
+                      {notification.message && cleanMessage(notification.message) && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                          {notification.message}
+                          {cleanMessage(notification.message)}
                         </p>
                       )}
                       <p className="text-xs text-gray-500 mt-1">

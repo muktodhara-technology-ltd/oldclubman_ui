@@ -89,6 +89,11 @@ const NotificationsView = () => {
     );
   };
 
+  const cleanMessage = (msg) => {
+    if (!msg) return '';
+    return msg.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').trim();
+  };
+
   const getNotificationIcon = (type) => {
     const iconProps = { size: 20 };
     switch (type) {
@@ -268,9 +273,9 @@ const NotificationsView = () => {
                         <p className="text-sm text-gray-800 font-medium mb-1">
                           {notification.title}
                         </p>
-                        {notification.message && (
+                        {notification.message && cleanMessage(notification.message) && (
                           <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                            {notification.message}
+                            {cleanMessage(notification.message)}
                           </p>
                         )}
                         <p className="text-xs text-gray-500">

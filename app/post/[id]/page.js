@@ -618,9 +618,10 @@ const PostDetailsPage = () => {
                                 } : {}}
                             >
                                 {post.background_url && /\/post_background\/.+/.test(post.background_url) ? stripHtmlTags(post.message) : (
-                                    <div className="bg-gray-800 p-8 rounded-lg max-w-2xl text-xl font-normal">
-                                        {post.message}
-                                    </div>
+                                    <div
+                                        className="bg-gray-800 p-8 rounded-lg max-w-2xl text-xl font-normal"
+                                        dangerouslySetInnerHTML={{ __html: post.message }}
+                                    />
                                 )}
                             </div>
                         )}
