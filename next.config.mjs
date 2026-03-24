@@ -36,17 +36,12 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'd154q69kxu0fuf.cloudfront.net',
+        hostname: 'd2zhr1p0n498z6.cloudfront.net',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'd3lt66zpzoyofs.cloudfront.net',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'oldclub-bucket.s3.amazonaws.com',
+        hostname: 'oldclub-production.s3.amazonaws.com',
         pathname: '/**',
       },
 
