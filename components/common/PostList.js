@@ -3447,60 +3447,56 @@ const PostList = ({ postsData }) => {
                   </div>
                   {(() => {
                     const isOwnPost = profile?.client?.id === item?.client?.id;
-                    let isPublic = true; // default public
-                    if (localLocationVisibilities[item.id] !== undefined) {
-                      isPublic = localLocationVisibilities[item.id];
-                    } else {
-                      let visStr = item?.client?.profile_visibility;
-                      let visObj = {};
-                      if (typeof visStr === 'string') {
-                        try { visObj = JSON.parse(visStr); } catch (e) { visObj = {}; }
-                      } else if (visStr && typeof visStr === 'object') {
-                        visObj = visStr;
-                      }
-                      isPublic = visObj.location !== 'private';
-                    }
+                    // Must use post location_visibility — NOT client.profile_visibility.location,
+                    // or viewers see nothing when profile hides location even if the post is public.
+                    const effectiveLocationVisibility =
+                      localLocationVisibilities[item.id] !== undefined
+                        ? localLocationVisibilities[item.id]
+                          ? 'public'
+                          : 'private'
+                        : String(item?.location_visibility ?? 'public').toLowerCase().trim();
+                    const postLocationIsPublic = effectiveLocationVisibility !== 'private';
 
-                    if (!isOwnPost && !isPublic) return null;
+                    if (!isOwnPost && !postLocationIsPublic) return null;
 
                     const handleToggleLocationPrivacy = async () => {
                       if (!isOwnPost) return;
-                      // Determine current auth user's profile metadata needed for storeBsicInformation
-                      const currentProfileData = profile?.client;
-                      if (!currentProfileData) return;
-
-                      // Instant local UI update
-                      const newIsPublic = !isPublic;
+                      const newIsPublic = !postLocationIsPublic;
                       setLocalLocationVisibilities(prev => ({ ...prev, [item.id]: newIsPublic }));
-
-                      // Re-parse vis for the payload
-                      let baseVisStr = currentProfileData.profile_visibility;
-                      let baseVisObj = {};
-                      if (typeof baseVisStr === 'string') {
-                        try { baseVisObj = JSON.parse(baseVisStr); } catch (e) { baseVisObj = {}; }
-                      } else if (baseVisStr && typeof baseVisStr === 'object') {
-                        baseVisObj = baseVisStr;
-                      }
-
-                      const newVis = { ...baseVisObj, location: newIsPublic ? 'public' : 'private' };
-
-                      // Using the same format as basic-information/index.js
-                      const payload = {
-                        ...currentProfileData,
-                        metas: JSON.stringify(currentProfileData?.metas || []),
-                        profile_visibility: JSON.stringify(newVis)
-                      };
-
                       try {
-                        await dispatch(storeBsicInformation(payload)).unwrap();
-                        dispatch(getMyProfile());
+                        await dispatch(
+                          updatePost({
+                            ...item,
+                            location_visibility: newIsPublic ? 'public' : 'private',
+                          })
+                        ).unwrap();
+                        await dispatch(getPosts()).unwrap();
+                        dispatch(getGathering());
+                        setLocalLocationVisibilities(prev => {
+                          const next = { ...prev };
+                          delete next[item.id];
+                          return next;
+                        });
                         toast.success(`Location is now ${newIsPublic ? 'Public' : 'Private'}`);
                       } catch (err) {
-                        toast.error("Failed to update privacy");
-                        // Revert local state on error
-                        setLocalLocationVisibilities(prev => ({ ...prev, [item.id]: isPublic }));
+                        toast.error('Failed to update location visibility');
+                        setLocalLocationVisibilities(prev => ({ ...prev, [item.id]: postLocationIsPublic }));
                       }
                     };
+
+                    const formattedPostLocation =
+                      item?.location && (isOwnPost || postLocationIsPublic)
+                        ? (() => {
+                            const parts = item.location.split(',').map(p => p.trim());
+                            const filtered = parts.filter(p =>
+                              !/^\d+$/.test(p) &&
+                              !/council|county|municipality|district|prefecture/i.test(p) &&
+                              !/^(new south wales|victoria|queensland|south australia|western australia|tasmania|northern territory|australian capital territory|england|scotland|wales|northern ireland|california|texas|florida|new york|ontario|british columbia|alberta|quebec|bavaria|île-de-france)$/i.test(p)
+                            );
+                            const joined = filtered.join(', ');
+                            return joined || parts[0] || 'Unknown Location';
+                          })()
+                        : 'Unknown Location';
 
                     return (
                       <p className="text-gray-500 text-sm flex items-center gap-1">
@@ -3510,28 +3506,18 @@ const PostList = ({ postsData }) => {
                           {formatCompactTime(item.created_at)}
                         </p>
                         <span className="text-gray-500 hidden sm:inline">•</span>
-                        {item?.location && item?.location_visibility === 'public'
-                          ? (() => {
-                            const parts = item.location.split(',').map(p => p.trim());
-                            const filtered = parts.filter(p =>
-                              !/^\d+$/.test(p) && // remove postal codes
-                              !/council|county|municipality|district|prefecture/i.test(p) && // remove admin divisions
-                              !/^(new south wales|victoria|queensland|south australia|western australia|tasmania|northern territory|australian capital territory|england|scotland|wales|northern ireland|california|texas|florida|new york|ontario|british columbia|alberta|quebec|bavaria|île-de-france)$/i.test(p) // remove common state/province names
-                            );
-                            return filtered.join(', ');
-                          })()
-                          : 'Unknown Location'}
+                        {formattedPostLocation}
                         {isOwnPost ? (
                           <button
                             onClick={handleToggleLocationPrivacy}
                             className="ml-1 cursor-pointer hover:text-blue-600 transition-colors tooltip"
-                            title={`Click to make location ${isPublic ? 'Private' : 'Public'}`}
+                            title={`Click to make location ${postLocationIsPublic ? 'Private' : 'Public'}`}
                           >
-                            {isPublic ? <FaGlobe title="Public" /> : <FaLock title="Private" />}
+                            {postLocationIsPublic ? <FaGlobe title="Public" /> : <FaLock title="Private" />}
                           </button>
                         ) : (
                           <span className="ml-1">
-                            {isPublic ? <FaGlobe title="Public" /> : <FaLock title="Private" />}
+                            {postLocationIsPublic}
                           </span>
                         )}
                       </p>
