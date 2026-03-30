@@ -42,13 +42,25 @@ const FriendsList = () => {
     { id: 'following', label: 'Following' }
   ];
 
-  const handleFollow = (id) => {
-    dispatch(followTo({ following_id: id }))
-  }
+  const [followingStates, setFollowingStates] = useState({});
+  const [loadingStates, setLoadingStates] = useState({});
 
-  const handleUnFollow = (id) => {
-    dispatch(unFollowTo({ following_id: id }))
-  }
+  const handleFollowToggle = async (id, isFollowing) => {
+    setLoadingStates(prev => ({ ...prev, [id]: true }));
+    try {
+      if (isFollowing) {
+        await dispatch(unFollowTo({ following_id: id }));
+        setFollowingStates(prev => ({ ...prev, [id]: false }));
+      } else {
+        await dispatch(followTo({ following_id: id }));
+        setFollowingStates(prev => ({ ...prev, [id]: true }));
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [id]: false }));
+    }
+  };
 
   const FriendCard = ({ friend }) => {
     // For followers tab: friend.follower_client contains the follower's info
@@ -58,6 +70,14 @@ const FriendsList = () => {
     const clientName = `${clientData?.fname || ''} ${clientData?.last_name || ''}`.trim();
     const clientTagline = clientData?.tagline || friend?.tagline || 'No tagline';
     const clientUsername = clientData?.username;
+    
+    // Default following state depends on tab
+    const defaultIsFollowing = activeTab === 'following';
+    const isFollowing = followingStates[clientData?.id] !== undefined 
+      ? followingStates[clientData?.id] 
+      : defaultIsFollowing;
+      
+    const isLoading = loadingStates[clientData?.id] || false;
 
     return (
       <div className="col-span-1">
@@ -82,9 +102,19 @@ const FriendsList = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <button onClick={() => { handleFollow(clientData?.id || friend?.id) }} className="px-3 py-1 cursor-pointer bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center space-x-2">
-              <FaUserPlus className="text-sm" />
-              <span>{followLoading ? "Following..." : "Follow"}</span>
+            <button 
+              onClick={() => handleFollowToggle(clientData?.id || friend?.id, isFollowing)} 
+              disabled={isLoading}
+              className={`px-3 py-1 cursor-pointer text-white rounded-md transition-colors flex items-center space-x-2 ${
+                isFollowing ? "bg-gray-500 hover:bg-gray-600" : "bg-blue-500 hover:bg-blue-600"
+              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {isFollowing ? <FaUserMinus className="text-sm" /> : <FaUserPlus className="text-sm" />}
+              <span>
+                {isLoading 
+                  ? (isFollowing ? "Unfollowing..." : "Following...") 
+                  : (isFollowing ? "Unfollow" : "Follow")}
+              </span>
             </button>
           </div>
         </div>
