@@ -70,6 +70,7 @@ function FeedHeaderInner({
   const [showNavDropdown, setShowNavDropdown] = useState(false);
   const [showChatBox, setShowChatBox] = useState(false);
   const [currentChat, setCurrentChat] = useState(false);
+  const [currentChatUser, setCurrentChatUser] = useState(null);
   const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -714,6 +715,7 @@ function FeedHeaderInner({
       // If we have a conversation, open the chat box
       if (conversation?.id) {
         console.log("Opening chat box with conversation:", conversation);
+        setCurrentChatUser(userData);
         setCurrentChat(conversation);
         try {
           await dispatch(getMessage({ id: conversation.id }));
@@ -743,6 +745,7 @@ function FeedHeaderInner({
         };
 
         // Set current chat with minimal data
+        setCurrentChatUser(userData);
         setCurrentChat(minimalConversation);
         setShowChatBox(true);
         toast.success('Opening conversation. You can now send a message.');
@@ -1355,11 +1358,12 @@ function FeedHeaderInner({
       {/* Chat Box */}
       {showChatBox && currentChat && (
         <ChatBox
-          user={data?.client}
+          user={currentChatUser || data?.client}
           currentChat={currentChat}
           onClose={() => {
             setShowChatBox(false);
             setCurrentChat(null);
+            setCurrentChatUser(null);
           }}
         />
       )}

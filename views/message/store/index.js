@@ -186,6 +186,7 @@ export const chatSlice = createSlice({
       })
       .addCase(getMessage.pending, (state) => {
         state.loading = true;
+        state.prevChat = []; // clear stale messages before loading a new conversation
       })
       .addCase(startConversation.pending, (state) => {
         state.loading = true;
