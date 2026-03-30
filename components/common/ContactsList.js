@@ -29,19 +29,30 @@ const ContactsList = () => {
   }, [dispatch]);
 
   // Transform followers data to match the expected format and filter out current user
-  const contacts = myFollowers?.map(follower => ({
-    id: follower.id,
-    name: `${follower.follower_client?.fname || ''} ${follower.follower_client?.last_name || ''}`.trim(),
-    avatar: getClientImageUrl(follower.follower_client?.image),
-    isOnline: follower.follower_client?.is_online || false,
-    lastSeen: follower.follower_client?.last_seen || "Unknown",
-    email: follower.follower_client?.email,
-    userId: follower.follower_client?.id
-  })).filter(contact => contact.userId !== profile?.client?.id) || [];
+  const contacts = myFollowers?.map(follower => {
+    const clientData = follower.follower_client || follower.following_client || follower;
+    const fullName = `${clientData?.fname || ''} ${clientData?.last_name || ''}`.trim();
+    
+    return {
+      id: follower.id,
+      name: fullName || clientData?.username || clientData?.email?.split('@')[0] || 'Unknown User',
+      avatar: getClientImageUrl(clientData?.image),
+      isOnline: clientData?.is_online || false,
+      lastSeen: clientData?.last_seen || "Unknown",
+      email: clientData?.email,
+      username: clientData?.username,
+      userId: clientData?.id
+    };
+  }).filter(contact => contact.userId && contact.userId !== profile?.client?.id) || [];
 
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredContacts = contacts.filter(contact => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (contact.name && contact.name.toLowerCase().includes(searchLower)) ||
+      (contact.email && contact.email.toLowerCase().includes(searchLower)) ||
+      (contact.username && contact.username.toLowerCase().includes(searchLower))
+    );
+  });
 
   // Handle contact click to open chat
   const handleContactClick = async (contact) => {
@@ -83,7 +94,7 @@ const ContactsList = () => {
           <div>
             <h2 className="text-xl font-bold text-gray-900 mb-0.5">Chattings</h2>
             <p className="text-xs text-gray-600">
-              {filteredContacts.filter(c => c.isOnline).length} online now
+              {contacts.filter(c => c.isOnline).length} online now
             </p>
           </div>
           <div className="flex items-center space-x-2">
