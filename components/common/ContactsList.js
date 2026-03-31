@@ -32,7 +32,7 @@ const ContactsList = () => {
   const contacts = myFollowers?.map(follower => {
     const clientData = follower.follower_client || follower.following_client || follower;
     const fullName = `${clientData?.fname || ''} ${clientData?.last_name || ''}`.trim();
-    
+
     return {
       id: follower.id,
       name: fullName || clientData?.username || clientData?.email?.split('@')[0] || 'Unknown User',
@@ -41,7 +41,8 @@ const ContactsList = () => {
       lastSeen: clientData?.last_seen || "Unknown",
       email: clientData?.email,
       username: clientData?.username,
-      userId: clientData?.id
+      userId: clientData?.id,
+      display_name: clientData?.display_name
     };
   }).filter(contact => contact.userId && contact.userId !== profile?.client?.id) || [];
 
@@ -50,6 +51,7 @@ const ContactsList = () => {
     return (
       (contact.name && contact.name.toLowerCase().includes(searchLower)) ||
       (contact.email && contact.email.toLowerCase().includes(searchLower)) ||
+      (contact?.display_name && contact.display_name.toLowerCase().includes(searchLower)) ||
       (contact.username && contact.username.toLowerCase().includes(searchLower))
     );
   });
@@ -192,7 +194,7 @@ const ContactsList = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
                     <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                      {contact.name || 'Unknown User'}
+                      {contact?.display_name ? `${contact?.name} ${contact?.display_name}` : (contact?.name || 'Unknown User')}
                     </h3>
                     {contact.isOnline && (
                       <span className="text-xs text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full">

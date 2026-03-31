@@ -656,12 +656,6 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
 
   return (
     <>
-      {/* Backdrop - Click to close - More transparent to see background */}
-      <div
-        className="fixed inset-0 bg-opacity-10 z-40"
-        onClick={onClose}
-      />
-
       {/* Chat Box - Floating Popup, can open from anywhere */}
       <div className="fixed bottom-4 right-4 w-96 h-[400px] bg-white rounded-lg shadow-2xl z-50 flex flex-col md:w-[300px] md:h-[400px]">
         {/* Chat Header */}
