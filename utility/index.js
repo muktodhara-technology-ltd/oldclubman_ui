@@ -146,3 +146,18 @@ export const getImageUrl = (path, type = 'post') => {
 
   return `${baseUrl}/${cleanPath}`;
 };
+
+/**
+ * Notification / actor profile avatars. Paths under `client/` must use getImageUrl(..., 'client');
+ * naive `base + path` breaks when env base has no trailing slash or path is wrong type.
+ */
+export const resolveActorAvatarUrl = (path) => {
+  if (path == null || path === "") return "";
+  const pathStr = String(path).trim();
+  if (pathStr.startsWith("http://") || pathStr.startsWith("https://")) return pathStr;
+  const clean = pathStr.replace(/^\/+/, "");
+  const baseUrl = process.env.NEXT_PUBLIC_FILE_PATH?.replace(/\/+$/, "") || "";
+  if (clean.startsWith("client/")) return getImageUrl(pathStr, "client");
+  if (clean.startsWith("post/")) return getImageUrl(pathStr, "post");
+  return `${baseUrl}/${clean}`;
+};

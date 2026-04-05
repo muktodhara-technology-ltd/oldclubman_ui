@@ -13,6 +13,7 @@ import {
   deleteNotification,
   deleteAllNotifications,
 } from "./store";
+import { resolveActorAvatarUrl } from "@/utility";
 import {
   FaTrash,
   FaCheck,
@@ -115,12 +116,6 @@ const NotificationsView = () => {
     }
   };
 
-  const getImageUrl = (image) => {
-    if (!image) return "/common-avator.jpg";
-    if (image.startsWith("http")) return image;
-    return `${process.env.NEXT_PUBLIC_FILE_PATH}${image}`;
-  };
-
   const filteredNotifications =
     activeTab === "unread"
       ? notifications.filter((n) => !n.is_read)
@@ -218,17 +213,23 @@ const NotificationsView = () => {
                 >
                   <div className="flex items-start gap-4">
                     {/* Actor Avatar with Icon */}
-                    <div className="relative flex-shrink-0">
-                      <img
-                        src={getImageUrl(notification.actor?.avatar)}
-                        alt={notification.actor?.fname || "User"}
-                        className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "/common-avator.jpg";
-                        }}
-                      />
-                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-md">
+                    <div className="relative h-14 w-14 shrink-0">
+                      <div className="h-full w-full overflow-hidden rounded-full bg-gray-100 ring-2 ring-white shadow-sm">
+                        <img
+                          src={
+                            resolveActorAvatarUrl(
+                              notification.actor?.avatar || notification.actor?.image
+                            ) || "/common-avator.jpg"
+                          }
+                          alt={notification.actor?.fname || "User"}
+                          className="h-full w-full min-h-0 min-w-0 object-cover object-center"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "/common-avator.jpg";
+                          }}
+                        />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 rounded-full bg-white p-1 shadow-md">
                         {getNotificationIcon(notification.type)}
                       </div>
                     </div>

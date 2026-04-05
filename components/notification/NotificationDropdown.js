@@ -12,6 +12,7 @@ import {
   markAllAsRead,
   deleteNotification,
 } from "@/views/notification/store";
+import { resolveActorAvatarUrl } from "@/utility";
 import { FaTrash, FaCheck, FaCheckDouble, FaHeart, FaComment, FaShare, FaCommentAlt, FaReply, FaGift, FaMoneyBillWave } from "react-icons/fa";
 
 const NotificationDropdown = ({ isOpen, onClose }) => {
@@ -106,12 +107,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
       .trim();
   };
 
-  const getImageUrl = (image) => {
-    if (!image) return "/common-avator.jpg";
-    if (image.startsWith('http')) return image;
-    return `${process.env.NEXT_PUBLIC_FILE_PATH}${image}`;
-  };
-
   const filteredNotifications =
     activeTab === "unread"
       ? notifications.filter((n) => !n.is_read)
@@ -190,17 +185,23 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
               >
                 <div className="flex items-start gap-3">
                   {/* Actor Avatar */}
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={getImageUrl(notification.actor?.avatar)}
-                      alt={notification.actor?.fname || "User"}
-                      className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "/common-avator.jpg";
-                      }}
-                    />
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5">
+                  <div className="relative h-10 w-10 shrink-0">
+                    <div className="h-full w-full overflow-hidden rounded-full bg-gray-100 ring-2 ring-white">
+                      <img
+                        src={
+                          resolveActorAvatarUrl(
+                            notification.actor?.avatar || notification.actor?.image
+                          ) || "/common-avator.jpg"
+                        }
+                        alt={notification.actor?.fname || "User"}
+                        className="h-full w-full min-h-0 min-w-0 object-cover object-center"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "/common-avator.jpg";
+                        }}
+                      />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 rounded-full bg-white p-0.5 shadow-sm">
                       {getNotificationIcon(notification.type)}
                     </div>
                   </div>

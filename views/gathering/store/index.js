@@ -272,6 +272,40 @@ export const getCommentReplies = createAsyncThunk(
   }
 );
 
+// Delete comment (placeholder endpoint - wire to your backend)
+export const deleteComment = createAsyncThunk(
+  'gathering/deleteComment',
+  async (commentId, { dispatch }) => {
+    dispatch(showPreloader());
+    try {
+      const response = await axios.post(`/comment/delete/${commentId}`);
+      dispatch(hidePreloader());
+      return response.data;
+    } catch (err) {
+      dispatch(hidePreloader());
+      errorResponse(err);
+      throw err;
+    }
+  }
+);
+
+// Edit comment (placeholder endpoint - wire to your backend)
+export const editComment = createAsyncThunk(
+  'gathering/editComment',
+  async (data, { dispatch }) => {
+    dispatch(showPreloader());
+    try {
+      const response = await axios.post(`/comment/update/${data.id}`, { content: data.content });
+      dispatch(hidePreloader());
+      return response.data;
+    } catch (err) {
+      dispatch(hidePreloader());
+      errorResponse(err);
+      throw err;
+    }
+  }
+);
+
 
 
 
