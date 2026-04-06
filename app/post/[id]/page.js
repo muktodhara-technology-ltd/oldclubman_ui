@@ -6,36 +6,90 @@ import { useDispatch, useSelector } from 'react-redux';
 import Cookies from 'js-cookie';
 import Link from 'next/link';
 import moment from 'moment';
-import Image from "next/image";
 import toast from "react-hot-toast";
-import { FaGlobeAmericas, FaLock, FaRegComment, FaChevronLeft, FaChevronRight, FaTimes, FaEllipsisH, FaCamera } from 'react-icons/fa';
+import { FaGlobeAmericas, FaLock, FaRegComment, FaChevronLeft, FaChevronRight, FaTimes } from 'react-icons/fa';
 import { SlLike } from 'react-icons/sl';
-import { IoMdShareAlt, IoIosShareAlt, IoLogoWhatsapp } from 'react-icons/io';
-import { FaFacebookMessenger, FaLink, FaUserFriends, FaUsers, FaBookOpen } from "react-icons/fa";
-import { BsMessenger } from "react-icons/bs";
+import { IoMdShareAlt } from 'react-icons/io';
 import api from '@/helpers/axios';
-import { getImageUrl } from '@/utility';
+import { getImageUrl, resolveActorAvatarUrl } from '@/utility';
 import { getAllFollowers, getMyProfile } from "@/views/settings/store";
 import {
     storePostReactions,
     deletePostReaction,
-    storeComments,
     getPostById,
-    likeComment,
-    replyToComment,
-    likeReply,
-    getCommentReplies,
     sharePost
 } from '@/views/gathering/store';
 import LoginPrompt from '@/components/auth/LoginPrompt';
 import ShareModal from '@/components/common/ShareModal';
+import CommentSection from '@/components/common/comments/CommentSection';
+
+/** Total reactions — feed API uses multiple_reaction_counts, not reactions.length */
+function sumPostReactionCounts(p) {
+    if (!p) return 0;
+    const rows = p.multiple_reaction_counts;
+    if (Array.isArray(rows) && rows.length > 0) {
+        return rows.reduce((sum, row) => sum + Number(row?.count ?? 0), 0);
+    }
+    if (p.reaction_count != null && p.reaction_count !== "") return Number(p.reaction_count);
+    return (p.reactions || []).length;
+}
+
+/** Up to 3 reaction types for stat icons */
+function reactionTypesForDisplay(p) {
+    const rows = p?.multiple_reaction_counts;
+    if (Array.isArray(rows) && rows.length > 0) {
+        return [...rows]
+            .filter((r) => r?.type && Number(r?.count) > 0)
+            .sort((a, b) => Number(b.count) - Number(a.count))
+            .slice(0, 3)
+            .map((r) => r.type);
+    }
+    return (p?.reactions || []).slice(0, 3).map((r) => r.type).filter(Boolean);
+}
+
+function applyReactionChange(prev, newType) {
+    const prevSingle = prev.single_reaction;
+    const mrc = Array.isArray(prev.multiple_reaction_counts) ? [...prev.multiple_reaction_counts] : [];
+    const idx = (t) => mrc.findIndex((r) => r.type === t);
+    const bump = (t, delta) => {
+        const i = idx(t);
+        if (i < 0) {
+            if (delta > 0) mrc.push({ type: t, count: delta });
+            return;
+        }
+        const next = Math.max(0, Number(mrc[i].count) + delta);
+        if (next <= 0) mrc.splice(i, 1);
+        else mrc[i] = { ...mrc[i], count: next };
+    };
+    if (prevSingle?.type) {
+        if (prevSingle.type !== newType) {
+            bump(prevSingle.type, -1);
+            bump(newType, 1);
+        }
+    } else {
+        bump(newType, 1);
+    }
+    return mrc;
+}
+
+function applyRemoveOwnReaction(prev) {
+    const single = prev.single_reaction;
+    if (!single?.type) return prev.multiple_reaction_counts;
+    const mrc = [...(prev.multiple_reaction_counts || [])];
+    const i = mrc.findIndex((r) => r.type === single.type);
+    if (i < 0) return mrc;
+    const next = Math.max(0, Number(mrc[i].count) - 1);
+    if (next <= 0) mrc.splice(i, 1);
+    else mrc[i] = { ...mrc[i], count: next };
+    return mrc;
+}
 
 const PostDetailsPage = () => {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
     const dispatch = useDispatch();
-    const { profile, myFollowers } = useSelector(({ settings }) => settings);
+    const { profile } = useSelector(({ settings }) => settings);
 
     const [post, setPost] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -43,12 +97,13 @@ const PostDetailsPage = () => {
     const [activeMediaIndex, setActiveMediaIndex] = useState(0);
     const [showReactions, setShowReactions] = useState(false);
 
-    // Comment & Reply States
-    const [commentInput, setCommentInput] = useState('');
-    const [replyInputs, setReplyInputs] = useState({}); // { [inputKey]: text }
-    const [showCommentReactionsFor, setShowCommentReactionsFor] = useState(null);
-    const [modalReplies, setModalReplies] = useState({}); // To store fetched replies
-    const [loadingReplies, setLoadingReplies] = useState({});
+    // Image preview (comment / reply attachments)
+    const [showImagePreview, setShowImagePreview] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
+    const [previewImages, setPreviewImages] = useState([]);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    const commentsPanelRef = useRef(null);
 
     // Share Modal State
     const [showShareModal, setShowShareModal] = useState(false);
@@ -60,7 +115,7 @@ const PostDetailsPage = () => {
     // Fetch Post Details - use getPostById for consistency with PostCommentsModal (includes comments)
     const fetchPostDetails = useCallback(async (loadingState = true) => {
         try {
-            if (loadingState && !post) setLoading(true);
+            if (loadingState) setLoading(true);
             let postData = null;
             try {
                 const result = await dispatch(getPostById(params.id)).unwrap();
@@ -70,7 +125,6 @@ const PostDetailsPage = () => {
                 try {
                     const response = await api.get(`/public/post/${params.id}`);
                     postData = response.data?.data?.value || response.data?.data?.post || response.data?.post || response.data?.value;
-                    // Ensure comments are merged - API may return them at different paths
                     if (!postData?.comments?.length && (response.data?.data?.comments || response.data?.comments)) {
                         postData = { ...postData, comments: response.data?.data?.comments || response.data?.comments };
                     }
@@ -81,14 +135,20 @@ const PostDetailsPage = () => {
             }
 
             if (postData) {
-                // Ensure comments array exists for rendering
                 setPost({ ...postData, comments: postData.comments ?? [] });
+                setError(null);
             } else {
-                if (!post) setError('Post not found');
+                setPost((prev) => {
+                    if (!prev) setError('Post not found');
+                    return prev;
+                });
             }
         } catch (err) {
             console.error('Error fetching post:', err);
-            if (!post) setError('Failed to load post');
+            setPost((prev) => {
+                if (!prev) setError('Failed to load post');
+                return prev;
+            });
         } finally {
             if (loadingState) setLoading(false);
         }
@@ -129,6 +189,24 @@ const PostDetailsPage = () => {
         router.push('/');
     };
 
+    const handleImagePreview = useCallback((imageSrc, allImages = [], index = 0) => {
+        setPreviewImage(imageSrc);
+        setPreviewImages(allImages?.length ? allImages : [imageSrc]);
+        setCurrentImageIndex(index);
+        setShowImagePreview(true);
+    }, []);
+
+    const closeImagePreview = useCallback(() => {
+        setShowImagePreview(false);
+        setPreviewImage(null);
+        setPreviewImages([]);
+        setCurrentImageIndex(0);
+    }, []);
+
+    const scrollToComments = () => {
+        commentsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     // --- Interaction Handlers ---
 
     // Post Reactions
@@ -138,12 +216,10 @@ const PostDetailsPage = () => {
         // Save current state for potential revert (deep copy)
         const previousPost = JSON.parse(JSON.stringify(post));
 
-        // Optimistic Update using functional state update
-        setPost(prev => {
+        setPost((prev) => {
             const updated = { ...prev };
             updated.single_reaction = { type: reactionType };
-
-            // Update reactions array
+            updated.multiple_reaction_counts = applyReactionChange(prev, reactionType);
             if (!prev.single_reaction) {
                 updated.reactions = [...(prev.reactions || []), { type: reactionType }];
             }
@@ -154,8 +230,7 @@ const PostDetailsPage = () => {
         dispatch(storePostReactions({ post_id: post.id, reaction_type: reactionType }))
             .unwrap()
             .then(() => {
-                console.log('[PostDetails] Reaction saved successfully');
-                // Removed fetchPostDetails to avoid backend cache
+                fetchPostDetails(false);
             })
             .catch((error) => {
                 console.error('[PostDetails] Reaction failed:', error);
@@ -170,18 +245,17 @@ const PostDetailsPage = () => {
         // Save current state for revert (deep copy)
         const previousPost = JSON.parse(JSON.stringify(post));
 
-        // Optimistic Update using functional state update
-        setPost(prev => ({
+        setPost((prev) => ({
             ...prev,
             single_reaction: null,
-            reactions: (prev.reactions || []).filter(r => r.client_id !== profile?.client?.id)
+            multiple_reaction_counts: applyRemoveOwnReaction(prev),
+            reactions: (prev.reactions || []).filter((r) => r.client_id !== profile?.client?.id),
         }));
 
         dispatch(deletePostReaction(post.id))
             .unwrap()
             .then(() => {
-                console.log('[PostDetails] Reaction deleted successfully');
-                // Removed fetchPostDetails to avoid backend cache
+                fetchPostDetails(false);
             })
             .catch((error) => {
                 console.error('[PostDetails] Delete reaction failed:', error);
@@ -189,209 +263,6 @@ const PostDetailsPage = () => {
                 toast.error("Failed to remove reaction");
             });
     };
-
-    // Main Comment Submit
-    const handleCommentSubmit = (e) => {
-        e.preventDefault();
-        if (!commentInput.trim() || !post) return;
-
-        const commentContent = commentInput.trim();
-        const previousPost = { ...post };
-
-        const optimisticComment = {
-            id: `temp-${Date.now()}`,
-            content: commentContent,
-            created_at: new Date().toISOString(),
-            client_comment: {
-                fname: profile?.client?.fname || 'You',
-                last_name: profile?.client?.last_name || '',
-                image: profile?.client?.image,
-                username: profile?.client?.username
-            },
-            reactions_count: 0,
-            replies_count: 0
-        };
-
-        // Optimistic update - add comment to the list
-        setPost(prev => ({
-            ...prev,
-            comments: [optimisticComment, ...(prev.comments || [])]
-        }));
-        setCommentInput('');
-
-        dispatch(storeComments({ post_id: post.id, content: commentContent }))
-            .unwrap()
-            .then((response) => {
-                console.log('[PostDetails] Comment response:', response);
-                // The response could be in different formats
-                const newComment = response?.comment || response?.data?.comment || response;
-
-                if (newComment && newComment.id) {
-                    // Replace optimistic comment with real one
-                    setPost(prev => ({
-                        ...prev,
-                        comments: prev.comments.map(c =>
-                            c.id === optimisticComment.id ? { ...newComment, client_comment: optimisticComment.client_comment } : c
-                        )
-                    }));
-                } else {
-                    // Back-end didn't return valid comment info. Keep the optimistic comment!
-                    console.log("[PostDetails] Backend delay, keeping optimistic comment");
-                }
-            })
-            .catch((error) => {
-                console.error('[PostDetails] Comment failed:', error);
-                setPost(previousPost);
-                setCommentInput(commentContent);
-                toast.error("Failed to post comment");
-            });
-    };
-
-    // Comment Likes
-    const handleCommentReaction = (comment_id, reaction) => {
-        // Optimistic Update
-        setShowCommentReactionsFor(null);
-        setPost(prev => ({
-            ...prev,
-            comments: prev.comments?.map(c => {
-                if (c.id === comment_id) {
-                    const isNewLike = !c.single_reaction;
-                    return {
-                        ...c,
-                        single_reaction: { type: reaction },
-                        reactions_count: isNewLike ? (c.reactions_count || 0) + 1 : c.reactions_count
-                    };
-                }
-                return c;
-            })
-        }));
-
-        dispatch(likeComment({ comment_id, reaction_type: reaction })).then(() => {
-            // Success
-        });
-    };
-
-    // Reply Likes
-    const handleReplyReaction = (reply_id, reaction, commentId) => {
-        setShowCommentReactionsFor(null);
-
-        // Optimistic Update
-        setModalReplies(prev => {
-            const copy = { ...prev };
-            if (copy[commentId]) {
-                const updateReply = (replies) => {
-                    return replies.map(r => {
-                        if (r.id === reply_id) {
-                            return { ...r, single_reaction: { type: reaction } };
-                        }
-                        if (r.children) {
-                            return { ...r, children: updateReply(r.children) };
-                        }
-                        return r;
-                    });
-                };
-                copy[commentId] = updateReply(copy[commentId]);
-            }
-            return copy;
-        });
-
-        dispatch(likeReply({ reply_id, type: reaction })).then(() => {
-            // Success
-        });
-    };
-
-    // Fetch Replies
-    const handleViewAllReplies = (commentId) => {
-        setLoadingReplies((prev) => ({ ...prev, [commentId]: true }));
-        dispatch(getCommentReplies(commentId))
-            .then((response) => {
-                if (response?.payload?.data?.comment?.replies) {
-                    setModalReplies((prev) => ({
-                        ...prev,
-                        [commentId]: response.payload.data.comment.replies || [],
-                    }));
-                }
-            })
-            .finally(() => {
-                setLoadingReplies((prev) => ({ ...prev, [commentId]: false }));
-            });
-    };
-
-    // Handle Reply to Reply Input Change
-    const handleReplyInputChange = (key, value) => {
-        setReplyInputs(prev => ({ ...prev, [key]: value }));
-    };
-
-    // Handle Reply Submit
-    const handleReplySubmit = (commentId, replyId, inputKey) => {
-        const content = replyInputs[inputKey];
-        if (!content?.trim()) return;
-
-        const optimisticReply = {
-            id: `temp-reply-${Date.now()}`,
-            content: content,
-            created_at: new Date().toISOString(),
-            client_comment: {
-                fname: profile?.client?.fname || 'You',
-                last_name: profile?.client?.last_name || '',
-                image: profile?.client?.image,
-                username: profile?.client?.username
-            },
-            single_reaction: null,
-            parent_id: replyId === commentId ? null : replyId
-        };
-
-        // Optimistic UI updates
-        setReplyInputs(prev => {
-            const copy = { ...prev };
-            delete copy[inputKey];
-            return copy;
-        });
-
-        setPost(prev => ({
-            ...prev,
-            comments: prev.comments?.map(c => 
-                c.id === commentId ? { ...c, replies_count: (c.replies_count || 0) + 1 } : c
-            )
-        }));
-
-        setModalReplies(prev => {
-            const copy = { ...prev };
-            const currentReplies = copy[commentId] || [];
-            
-            if (replyId === commentId) {
-                // Top level reply to main comment
-                copy[commentId] = [...currentReplies, optimisticReply];
-            } else {
-                // Nested reply
-                const insertReply = (replies) => {
-                    return replies.map(r => {
-                        if (r.id === replyId) {
-                            return { ...r, children: [...(r.children || []), optimisticReply] };
-                        }
-                        if (r.children) {
-                            return { ...r, children: insertReply(r.children) };
-                        }
-                        return r;
-                    });
-                };
-                copy[commentId] = insertReply(currentReplies);
-            }
-            return copy;
-        });
-
-        const payload = {
-            comment_id: commentId,
-            parent_id: replyId === commentId ? null : replyId, 
-            content: content
-        };
-
-        dispatch(replyToComment(payload))
-            .then(() => {
-                // Success - wait for cache to clear over time naturally
-            });
-    };
-
 
     // --- Share Logic ---
     const handleShareClick = () => {
@@ -423,111 +294,32 @@ const PostDetailsPage = () => {
     };
 
 
-    // Helpers
-    const getClientImageUrl = (imagePath) => {
-        if (!imagePath) return "/common-avator.jpg";
-        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            return imagePath;
-        }
-        return process.env.NEXT_PUBLIC_FILE_PATH + imagePath;
-    };
+    const actorAvatar = (path) =>
+        resolveActorAvatarUrl(path) || "/common-avator.jpg";
 
     const stripHtmlTags = (html) => {
         if (!html) return "";
         return html.replace(/<[^>]*>?/gm, '');
     };
 
-    // Time formatting
-    const formatCompactTime = (timestamp) => {
-        if (!timestamp) return "";
-        const duration = moment.duration(moment().diff(moment(timestamp)));
-        const days = Math.floor(duration.asDays());
-        const hours = Math.floor(duration.asHours()) % 24;
-        const minutes = Math.floor(duration.asMinutes()) % 60;
-        if (days > 0) return `${days}d`;
-        if (hours > 0) return `${hours}h`;
-        if (minutes > 0) return `${minutes}m`;
-        return `Just now`;
-    };
-
-
-    // Render Recursive Replies
-    const renderReplies = (replies, commentId, level = 1) => {
-        if (!Array.isArray(replies) || replies.length === 0) return null;
-
-        return replies.map((reply) => (
-            <div key={reply.id} className="flex gap-2 mt-2" style={{ marginLeft: `${level * 12}px` }}>
-                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 mt-1">
-                    <img
-                        src={getClientImageUrl(reply.client_comment?.image)}
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.currentTarget.src = "/common-avator.jpg"; }}
-                    />
-                </div>
-                <div className="flex-1">
-                    <div className="bg-gray-100 rounded-2xl px-3 py-2 inline-block">
-                        <Link href={`/${reply.client_comment?.username}`} className="font-semibold text-xs hover:underline block">
-                            {`${reply.client_comment?.fname || ''} ${reply.client_comment?.last_name || ''}`}
-                        </Link>
-                        <p className="text-xs text-gray-800">{reply.content}</p>
-                    </div>
-                    <div className="flex items-center gap-2 px-2 mt-0.5 text-[10px] text-gray-500">
-                        <span>{formatCompactTime(reply.created_at)}</span>
-
-                        {/* Reply Like Button */}
-                        <div className="relative group">
-                            <button
-                                className={`font-semibold hover:underline ${reply.single_reaction ? 'text-blue-600' : ''}`}
-                                onClick={() => setShowCommentReactionsFor(showCommentReactionsFor === reply.id ? null : reply.id)}
-                            >
-                                {reply.single_reaction ? reply.single_reaction.type : 'Like'}
-                            </button>
-                            {showCommentReactionsFor === reply.id && (
-                                <div className="absolute bottom-full left-0 mb-0 bg-white shadow-xl rounded-full flex gap-0.5 px-2 py-1.5 z-50" onMouseEnter={() => setShowCommentReactionsFor(reply.id)} onMouseLeave={() => setShowCommentReactionsFor(null)}>
-                                    {['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].map((type) => (
-                                        <img
-                                            key={type}
-                                            src={`/${type}.png`}
-                                            className="w-4 h-4 cursor-pointer hover:scale-125 transition-transform"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleReplyReaction(reply.id, type, commentId);
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <button
-                            className="font-semibold hover:underline"
-                            onClick={() => setReplyInputs(prev => ({ ...prev, [`reply-${reply.id}`]: `@${reply.client_comment?.fname} ` }))}
-                        >
-                            Reply
-                        </button>
-                    </div>
-
-                    {/* Reply Input Field (if active) */}
-                    {replyInputs[`reply-${reply.id}`] !== undefined && (
-                        <div className="mt-2 flex gap-2">
-                            <input
-                                autoFocus
-                                className="bg-gray-100 border rounded-full px-3 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                value={replyInputs[`reply-${reply.id}`]}
-                                onChange={(e) => handleReplyInputChange(`reply-${reply.id}`, e.target.value)}
-                                placeholder={`Reply to ${reply.client_comment?.fname}...`}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleReplySubmit(commentId, reply.id, `reply-${reply.id}`); }}
-                            />
-                        </div>
-                    )}
-
-                    {/* Nested Replies */}
-                    {reply.children && renderReplies(reply.children, commentId, level + 1)}
-                </div>
-            </div>
-        ));
-    };
-
+    useEffect(() => {
+        if (!showImagePreview) return;
+        const onKey = (e) => {
+            if (e.key === "Escape") closeImagePreview();
+            if (e.key === "ArrowLeft" && currentImageIndex > 0) {
+                const n = currentImageIndex - 1;
+                setCurrentImageIndex(n);
+                setPreviewImage(previewImages[n]);
+            }
+            if (e.key === "ArrowRight" && currentImageIndex < previewImages.length - 1) {
+                const n = currentImageIndex + 1;
+                setCurrentImageIndex(n);
+                setPreviewImage(previewImages[n]);
+            }
+        };
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+    }, [showImagePreview, currentImageIndex, previewImages, closeImagePreview]);
 
     if (loading) {
         return (
@@ -554,6 +346,9 @@ const PostDetailsPage = () => {
     const currentFile = post.files?.[activeMediaIndex];
     const isVideo = currentFile ? /\.(mp4|webm|ogg|mov|avi)$/i.test(currentFile.file_path || currentFile.path || '') : false;
     const mediaSrc = currentFile ? getImageUrl(currentFile.file_path || currentFile.path, 'post') : null;
+
+    const reactionTotal = sumPostReactionCounts(post);
+    const reactionIconTypes = reactionTypesForDisplay(post);
 
     return (
         <div className="fixed inset-0 z-[100] flex flex-col h-screen w-screen bg-black overflow-hidden">
@@ -629,13 +424,13 @@ const PostDetailsPage = () => {
                 </div>
 
                 {/* RIGHT SIDE - DETAILS SIDEBAR */}
-                <div className="w-full md:w-[400px] h-[50vh] md:h-full bg-white flex flex-col border-l border-gray-200">
+                <div className="w-full md:w-[400px] h-[50vh] md:h-full bg-white flex flex-col border-l border-gray-200 min-h-0">
 
                     {/* Header */}
                     <div className="p-4 border-b flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <img
-                                src={getClientImageUrl(post.client?.image)}
+                                src={actorAvatar(post.client?.image)}
                                 className="w-10 h-10 rounded-full object-cover border border-gray-200"
                                 onError={(e) => { e.currentTarget.src = "/common-avator.jpg"; }}
                             />
@@ -652,18 +447,17 @@ const PostDetailsPage = () => {
                         </div>
                     </div>
 
-                    {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                        {/* Post Caption (if not background post) */}
+                    {/* Caption + stats + actions (shrink); comments use shared CommentSection */}
+                    <div className="flex-shrink-0 overflow-y-auto p-4 custom-scrollbar max-h-[42vh] md:max-h-[45%] border-b border-gray-100">
                         {(!post.background_url || !/\/post_background\/.+/.test(post.background_url)) && post.message && (
                             <div className="mb-4">
                                 <div
                                     className={`text-gray-900 text-sm whitespace-pre-wrap break-words ${!isMessageExpanded ? 'line-clamp-2' : ''}`}
                                     dangerouslySetInnerHTML={{ __html: post.message }}
                                 />
-                                {/* Show See more/less only if message is long enough */}
                                 {stripHtmlTags(post.message).length > 150 && (
                                     <button
+                                        type="button"
                                         onClick={() => setIsMessageExpanded(!isMessageExpanded)}
                                         className="text-gray-500 hover:text-gray-700 text-sm font-medium mt-1"
                                     >
@@ -673,23 +467,24 @@ const PostDetailsPage = () => {
                             </div>
                         )}
 
-                        {/* Stats */}
                         <div className="flex items-center justify-between py-2 text-sm text-gray-600 mb-2">
                             <div className="flex items-center gap-1">
-                                {post.reactions?.slice(0, 3).map((reaction, idx) => (
-                                    <img key={idx} src={`/${reaction.type}.png`} alt={reaction.type} className="w-4 h-4" />
+                                {reactionIconTypes.map((type, idx) => (
+                                    <img key={`${type}-${idx}`} src={`/${type}.png`} alt={type} className="w-4 h-4" />
                                 ))}
-                                <span className="ml-1 hover:underline cursor-pointer">{post.reactions?.length || 0}</span>
+                                <span className="ml-1 hover:underline cursor-pointer">{reactionTotal}</span>
                             </div>
                             <div className="flex gap-4">
-                                <span className="hover:underline cursor-pointer">{post.comments?.length || 0} Comments</span>
+                                <button type="button" onClick={scrollToComments} className="hover:underline cursor-pointer">
+                                    {post.comments_count ?? post.comments?.length ?? 0} Comments
+                                </button>
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-1 py-1 border-t border-b border-gray-200 mb-4">
+                        <div className="flex gap-1 py-1 border-t border-b border-gray-200">
                             <div className="relative flex-1">
                                 <button
+                                    type="button"
                                     onMouseEnter={() => setShowReactions(true)}
                                     onMouseLeave={() => setShowReactions(false)}
                                     onClick={() => {
@@ -708,7 +503,7 @@ const PostDetailsPage = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <img src={`/${post.single_reaction.type}.png`} className="w-5 h-5" />
+                                            <img src={`/${post.single_reaction.type}.png`} alt="" className="w-5 h-5" />
                                             <span className={`capitalize ${post.single_reaction.type === 'like' ? 'text-blue-600' :
                                                 post.single_reaction.type === 'love' ? 'text-red-600' : 'text-yellow-600'
                                                 }`}>{post.single_reaction.type}</span>
@@ -736,11 +531,16 @@ const PostDetailsPage = () => {
                                     </div>
                                 )}
                             </div>
-                            <button className="flex-1 py-2 flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors text-sm font-medium">
+                            <button
+                                type="button"
+                                onClick={scrollToComments}
+                                className="flex-1 py-2 flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors text-sm font-medium"
+                            >
                                 <FaRegComment className="w-5 h-5" />
                                 <span>Comment</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={handleShareClick}
                                 className="flex-1 py-2 flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors text-sm font-medium"
                             >
@@ -748,137 +548,22 @@ const PostDetailsPage = () => {
                                 <span>Share</span>
                             </button>
                         </div>
-
-                        {/* Comments List */}
-                        <div className="space-y-4">
-                            {post.comments?.map((comment) => (
-                                <div key={comment.id} className="flex gap-2 group">
-                                    <img
-                                        src={getClientImageUrl(comment.client_comment?.image)}
-                                        className="w-8 h-8 rounded-full object-cover mt-1 shrink-0"
-                                        onError={(e) => { e.currentTarget.src = "/common-avator.jpg"; }}
-                                    />
-                                    <div className="flex-1">
-                                        <div className="bg-gray-100 rounded-2xl px-3 py-2 inline-block">
-                                            <Link href={`/${comment.client_comment?.username}`} className="font-semibold text-sm hover:underline block">
-                                                {`${comment.client_comment?.fname || ''} ${comment.client_comment?.last_name || ''}`}
-                                            </Link>
-                                            <p className="text-sm text-gray-800">{comment.content}</p>
-                                        </div>
-                                        <div className="flex items-center gap-3 px-2 mt-0.5 text-xs text-gray-500">
-                                            <span>{moment(comment.created_at).fromNow()}</span>
-
-                                            {/* Comment Like Button */}
-                                            <div className="relative group">
-                                                <button
-                                                    className={`font-semibold hover:underline ${comment.single_reaction ? 'text-blue-600' : ''}`}
-                                                    onClick={() => setShowCommentReactionsFor(showCommentReactionsFor === comment.id ? null : comment.id)}
-                                                >
-                                                    {comment.single_reaction ? comment.single_reaction.type : 'Like'}
-                                                </button>
-                                                {showCommentReactionsFor === comment.id && (
-                                                    <div className="absolute bottom-full left-0 mb-0 bg-white shadow-xl rounded-full flex gap-0.5 px-2 py-1.5 z-50" onMouseEnter={() => setShowCommentReactionsFor(comment.id)} onMouseLeave={() => setShowCommentReactionsFor(null)}>
-                                                        {['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].map((type) => (
-                                                            <img
-                                                                key={type}
-                                                                src={`/${type}.png`}
-                                                                className="w-4 h-4 cursor-pointer hover:scale-125 transition-transform"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleCommentReaction(comment.id, type);
-                                                                }}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <button
-                                                className="font-semibold hover:underline"
-                                                onClick={() => setReplyInputs(prev => ({ ...prev, [`comment-${comment.id}`]: '' }))}
-                                            >
-                                                Reply
-                                            </button>
-                                            {comment.single_reaction && (
-                                                <span className="flex items-center gap-1">
-                                                    <img src={`/${comment.single_reaction.type}.png`} className="w-3 h-3" />
-                                                    <span className="text-blue-600">{comment.reactions_count}</span>
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Reply Input for Main Comment */}
-                                        {replyInputs[`comment-${comment.id}`] !== undefined && (
-                                            <div className="mt-2 flex gap-2">
-                                                <img
-                                                    src={getClientImageUrl(profile?.client?.image)}
-                                                    className="w-6 h-6 rounded-full object-cover shrink-0"
-                                                />
-                                                <div className="flex-1">
-                                                    <input
-                                                        autoFocus
-                                                        className="bg-gray-100 border rounded-full px-3 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                                        value={replyInputs[`comment-${comment.id}`]}
-                                                        onChange={(e) => handleReplyInputChange(`comment-${comment.id}`, e.target.value)}
-                                                        placeholder="Write a reply..."
-                                                        onKeyDown={(e) => { if (e.key === 'Enter') handleReplySubmit(comment.id, comment.id, `comment-${comment.id}`); }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* View Replies Button */}
-                                        {(comment.replies_count > 0 || (modalReplies[comment.id] && modalReplies[comment.id].length > 0)) && (
-                                            <div className="mt-1 ml-2">
-                                                {(!modalReplies[comment.id] || modalReplies[comment.id].length === 0) ? (
-                                                    <button
-                                                        onClick={() => handleViewAllReplies(comment.id)}
-                                                        className="text-xs font-semibold text-gray-600 hover:underline flex items-center gap-1"
-                                                    >
-                                                        <div className="w-4 h-px bg-gray-400"></div>
-                                                        View {comment.replies_count} replies
-                                                    </button>
-                                                ) : (
-                                                    <div className="mt-2">
-                                                        {renderReplies(modalReplies[comment.id], comment.id)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
                     </div>
 
-                    {/* Footer Input */}
-                    <div className="p-3 border-t shrink-0 bg-white z-20">
-                        <form onSubmit={handleCommentSubmit} className="flex gap-2">
-                            <img
-                                src={getClientImageUrl(profile?.client?.image)}
-                                className="w-8 h-8 rounded-full object-cover"
-                                onError={(e) => { e.currentTarget.src = "/common-avator.jpg"; }}
-                            />
-                            <div className="flex-1 relative">
-                                <input
-                                    type="text"
-                                    value={commentInput}
-                                    onChange={(e) => setCommentInput(e.target.value)}
-                                    placeholder="Write a comment..."
-                                    className="w-full px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!commentInput.trim()}
-                                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-600 hover:bg-blue-50 p-1 rounded-full ${!commentInput.trim() && 'opacity-0 pointer-events-none'}`}
-                                >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                    </svg>
-                                </button>
-                            </div>
-                        </form>
+                    <div
+                        id="post-comments-panel"
+                        ref={commentsPanelRef}
+                        className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-gray-100"
+                    >
+                        <CommentSection
+                            postId={post.id}
+                            mode="modal"
+                            comments={post.comments || []}
+                            commentsCount={post.comments_count ?? post.comments?.length ?? 0}
+                            onImagePreview={handleImagePreview}
+                            onPostRefresh={() => fetchPostDetails(false)}
+                            profile={profile}
+                        />
                     </div>
                 </div>
 
@@ -889,6 +574,64 @@ const PostDetailsPage = () => {
                     postId={post?.id}
                     onShareSuccess={() => fetchPostDetails(false)}
                 />
+
+                {showImagePreview && previewImage && (
+                    <div
+                        className="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4"
+                        onClick={closeImagePreview}
+                        role="presentation"
+                    >
+                        <button
+                            type="button"
+                            onClick={closeImagePreview}
+                            className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300 z-10"
+                            aria-label="Close"
+                        >
+                            ×
+                        </button>
+                        {previewImages.length > 1 && currentImageIndex > 0 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const n = currentImageIndex - 1;
+                                    setCurrentImageIndex(n);
+                                    setPreviewImage(previewImages[n]);
+                                }}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 z-10"
+                                aria-label="Previous"
+                            >
+                                ‹
+                            </button>
+                        )}
+                        {previewImages.length > 1 && currentImageIndex < previewImages.length - 1 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const n = currentImageIndex + 1;
+                                    setCurrentImageIndex(n);
+                                    setPreviewImage(previewImages[n]);
+                                }}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 z-10"
+                                aria-label="Next"
+                            >
+                                ›
+                            </button>
+                        )}
+                        <img
+                            src={previewImage}
+                            alt="Preview"
+                            className="max-w-full max-h-[90vh] object-contain"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        {previewImages.length > 1 && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white bg-black/50 px-3 py-1 rounded text-sm">
+                                {currentImageIndex + 1} / {previewImages.length}
+                            </div>
+                        )}
+                    </div>
+                )}
 
             </div>
         </div>

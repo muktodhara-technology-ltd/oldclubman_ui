@@ -31,6 +31,8 @@ import CommentItem from "./CommentItem";
  * @param {function} onImagePreview - Callback for image preview
  * @param {function} renderContent - Optional custom content renderer
  * @param {object}   profile - Override profile (optional)
+ * @param {function} onPostRefresh - Called after comment/reply mutations (e.g. refetch post in parent local state)
+ * @param {string}   className - Optional class on root (modal mode)
  */
 const CommentSection = ({
   postId,
@@ -42,6 +44,8 @@ const CommentSection = ({
   onImagePreview,
   renderContent,
   profile: profileProp,
+  onPostRefresh,
+  className = "",
 }) => {
   const dispatch = useDispatch();
   const reduxProfile = useSelector(({ settings }) => settings.profile);
@@ -81,7 +85,8 @@ const CommentSection = ({
   const refreshPostData = useCallback(() => {
     dispatch(getPosts());
     dispatch(getPostById(postId));
-  }, [dispatch, postId]);
+    onPostRefresh?.();
+  }, [dispatch, postId, onPostRefresh]);
 
   // ----- Comment Submit -----
   const handleCommentSubmit = useCallback(
@@ -239,9 +244,9 @@ const CommentSection = ({
 
   // ===================== MODAL MODE =====================
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full min-h-0 ${className}`.trim()}>
       {/* Scrollable comment list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 py-2 md:px-4 md:py-3 space-y-4 min-h-0">
         {comments && comments.length > 0 ? (
           comments.map((comment, i) => (
             <CommentItem
