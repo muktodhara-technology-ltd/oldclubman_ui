@@ -674,7 +674,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
             </div>
             <div className="flex flex-col gap-0 flex-1 min-w-0">
               <p className="text-white font-medium text-sm leading-tight truncate">
-                {displayUser?.fname ? `${displayUser.fname} ${displayUser.last_name || ''}`.trim() : "Oldclubman User"}
+                {displayUser?.display_name || displayUser.fname + " " + displayUser.last_name}
               </p>
               <span className="text-xs text-green-300 leading-tight flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full"></span>
