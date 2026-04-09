@@ -11,6 +11,7 @@ import { FaTimes, FaPaperPlane, FaImage } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import { useChatPusher } from '../custom/useChatPusher';
 import ChatPostPreview from './ChatPostPreview';
+import { ClientPageRoot } from 'next/dist/client/components/client-page';
 
 // Helper to extract UUID from post URL
 const extractPostId = (content) => {
@@ -70,11 +71,20 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
         otherUser = user;
       }
 
-      setDisplayUser(otherUser || user);
+      let finalUser = otherUser || user;
+
+      // Preserve custom_nickname from the user prop if it's missing in the chat's user data
+      if (finalUser && user?.custom_nickname && !finalUser.custom_nickname) {
+        finalUser = { ...finalUser, custom_nickname: user.custom_nickname };
+      }
+
+      setDisplayUser(finalUser);
     } else {
       setDisplayUser(user);
     }
   }, [currentChat, user, profile?.client?.id]);
+
+  console.log("displayUser...", displayUser);
 
   // Update message when initialMessage changes
   useEffect(() => {
@@ -82,6 +92,7 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
       setMessage(initialMessage);
     }
   }, [initialMessage]);
+
 
   // Don't prevent body scroll - allow it to be a floating chat box
 
@@ -674,7 +685,8 @@ const ChatBox = ({ user, currentChat, onClose, initialMessage = "" }) => {
             </div>
             <div className="flex flex-col gap-0 flex-1 min-w-0">
               <p className="text-white font-medium text-sm leading-tight truncate">
-                {displayUser?.display_name || displayUser.fname + " " + displayUser.last_name}
+                {displayUser?.display_name || `${displayUser?.fname || ''} ${displayUser?.last_name || ''}`.trim()}
+                {displayUser?.custom_nickname ? ` (${displayUser.custom_nickname})` : ''}
               </p>
               <span className="text-xs text-green-300 leading-tight flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full"></span>
